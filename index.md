@@ -14,7 +14,7 @@ We embed each vectorized scene element into a latent representation with an auto
 
 ## Fully Data-Driven Generative Simulation
 
-Examples here
+We simulate surrounding agents with a CtRL-Sim behaviour model, yielding a fully data-driven generative simulator for autonomous vehicle planning. Below, we show videos of an IDM-based planner driving in Scenario Dreamer generated environments.
 
 ## Large Scene generation
 
@@ -38,7 +38,9 @@ Examples here
 
 ## Scene Diversity 
 
-Examples here
+Scenario Dreamer generates diverse scenes. The first row shows five inpainting extraploations given the same left-half of the scene. The second row shows five scenes generated with 8 agents and 24 lanes. In both cases, Scenario Dreamer demonstrates plausible diversity in the generated scenes.
+
+![img](src/website_diversity.png)
 
 ## Qualitative Comparison with Baselines
 
