@@ -26,7 +26,14 @@ A key feature of Scenario Dreamer is its ability to generate simulation environm
 
 **Scene Generation**
 
-Examples here
+<div style="display: flex; gap: 10px;">
+  <img src="src/0.gif" width="150" alt="GIF 0" />
+  <img src="src/1.gif" width="150" alt="GIF 1" />
+  <img src="src/2.gif" width="150" alt="GIF 2" />
+  <img src="src/3.gif" width="150" alt="GIF 3" />
+  <img src="src/4.gif" width="150" alt="GIF 4" />
+  <img src="src/5.gif" width="150" alt="GIF 5" />
+</div>
 
 **Lane-conditioned Object Generation**
 
