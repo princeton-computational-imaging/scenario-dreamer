@@ -10,7 +10,7 @@ We introduce Scenario Dreamer, a fully data-driven generative simulator for auto
 
 ![img](src/arch_figure_website.png)
 
-We embed each vectorized scene element into a latent representation with an autoencoder parameterized with factorized attention blocks, which additionally fuses the lane connectivity A. The latent Transformer diffusion model is trained to sample from the autoencoder's latent distribution. *Right*: Scenario Dreamer samples novel driving scenes by initializing noise tokens which are iteratively denoised with the latent diffusion model over T steps and decoded into vectorized scene elements. The ego vehicle is denoted in red, with other agents colored in blue and pedestrians in purple.
+We embed each vectorized scene element into a latent representation with an autoencoder parameterized with factorized attention blocks, which additionally fuses the lane connectivity A. The latent Transformer diffusion model is trained to sample from the autoencoder's latent distribution. Scenario Dreamer samples novel driving scenes by initializing noise tokens which are iteratively denoised with the latent diffusion model over T steps and decoded into vectorized scene elements. The ego vehicle is denoted in red, with other agents colored in blue and pedestrians in purple.
 
 ## Fully Data-Driven Generative Simulation
 
@@ -39,6 +39,12 @@ Examples here
 ## Scene Diversity 
 
 Examples here
+
+## Qualitative Comparison with Baselines
+
+Scenario Dreamer agent and lane generations exhibit superior fidelity compared to previous works (SLEDGE on nuPlan and privileged DriveSceneGen on Waymo). We attribute these improvements to the fully vectorized processing of Scenario Dreamer.
+
+![img](src/website_qualitative_comparison.png)
 
 ## Citation
 
