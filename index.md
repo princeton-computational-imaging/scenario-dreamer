@@ -41,7 +41,7 @@ A key feature of Scenario Dreamer is its ability to generate simulation environm
 
 **Scene Generation**
 
-<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;">
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;">
   <img src="src/0.gif" width="150" alt="GIF 0" />
   <img src="src/1.gif" width="150" alt="GIF 1" />
   <img src="src/2.gif" width="150" alt="GIF 2" />
