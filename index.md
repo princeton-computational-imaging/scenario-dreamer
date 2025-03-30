@@ -39,7 +39,9 @@ A key feature of Scenario Dreamer is its ability to generate simulation environm
 
 ## Supported Generation Modes 
 
-**Scene Generation**
+Below, we show examples of each of the supported generation modes with the Scenario Dreamer vectorized latent diffusion model: initial scene generation, lane-conditioned object generation, and scene inpainting. For initial scene generation and lane-conditioned object generation, we visualize the reverse diffusion chain that generated the corresponding samples.
+
+**Initial Scene Generation**
 
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;">
   <img src="src/scene_generation/0.gif" width="250" alt="GIF 0" />
@@ -61,9 +63,9 @@ A key feature of Scenario Dreamer is its ability to generate simulation environm
   <img src="src/l2a/5.gif" width="250" alt="GIF 5" />
 </div>
 
-**Inpainting**
+**Scene Inpainting**
 
-Examples here
+![img](src/website_inpainting.png)
 
 ## Scene Diversity 
 
