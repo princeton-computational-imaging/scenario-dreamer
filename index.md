@@ -1,6 +1,6 @@
 <br /><br />
 
-Example diffusion chain + simulation rollout here.
+![img](src/twitter_video.gif)
 
 ## Abstract
 
