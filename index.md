@@ -1,6 +1,6 @@
-<br /><br />
+<br /><br /><br />
 
-![img](src/twitter_video.gif)
+<img src="twitter_video.gif" alt="GIF" width="500" />
 
 ## Abstract
 
