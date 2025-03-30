@@ -14,7 +14,7 @@ We embed each vectorized scene element into a latent representation with an auto
 
 ## Fully Data-Driven Generative Simulation
 
-We simulate surrounding agents with a CtRL-Sim behaviour model, yielding a fully data-driven generative simulator for autonomous vehicle planning. Below, we show videos of an IDM-based planner driving in Scenario Dreamer generated environments.
+We initialize simulation environments with Scenario Dreamer scenes and simulate surrounding agents with a CtRL-Sim behaviour model, yielding a fully data-driven generative simulator for autonomous vehicle planning. Below, we show videos of an IDM-based planner driving in Scenario Dreamer generated environments.
 
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;">
   <img src="src/data_driven_simulation/0.gif" width="250" alt="GIF 0" />
@@ -41,7 +41,7 @@ A key feature of Scenario Dreamer is its ability to generate simulation environm
 
 **Scene Generation**
 
-<div style="display: flex; gap: 10px;">
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px;">
   <img src="src/0.gif" width="150" alt="GIF 0" />
   <img src="src/1.gif" width="150" alt="GIF 1" />
   <img src="src/2.gif" width="150" alt="GIF 2" />
