@@ -16,19 +16,19 @@ We embed each vectorized scene element into a latent representation with an auto
 
 We simulate surrounding agents with a CtRL-Sim behaviour model, yielding a fully data-driven generative simulator for autonomous vehicle planning. Below, we show videos of an IDM-based planner driving in Scenario Dreamer generated environments.
 
-<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-  <img src="src/data_driven_simulation/0.gif" width="150" alt="GIF 0" />
-  <img src="src/data_driven_simulation/1.gif" width="150" alt="GIF 1" />
-  <img src="src/data_driven_simulation/2.gif" width="150" alt="GIF 2" />
-  <img src="src/data_driven_simulation/3.gif" width="150" alt="GIF 3" />
-  <img src="src/data_driven_simulation/4.gif" width="150" alt="GIF 4" />
-  <img src="src/data_driven_simulation/5.gif" width="150" alt="GIF 5" />
-  <img src="src/data_driven_simulation/6.gif" width="150" alt="GIF 6" />
-  <img src="src/data_driven_simulation/7.gif" width="150" alt="GIF 7" />
-  <img src="src/data_driven_simulation/8.gif" width="150" alt="GIF 8" />
-  <img src="src/data_driven_simulation/9.gif" width="150" alt="GIF 9" />
-  <img src="src/data_driven_simulation/10.gif" width="150" alt="GIF 10" />
-  <img src="src/data_driven_simulation/11.gif" width="150" alt="GIF 11" />
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;">
+  <img src="src/data_driven_simulation/0.gif" width="250" alt="GIF 0" />
+  <img src="src/data_driven_simulation/1.gif" width="250" alt="GIF 1" />
+  <img src="src/data_driven_simulation/2.gif" width="250" alt="GIF 2" />
+  <img src="src/data_driven_simulation/3.gif" width="250" alt="GIF 3" />
+  <img src="src/data_driven_simulation/4.gif" width="250" alt="GIF 4" />
+  <img src="src/data_driven_simulation/5.gif" width="250" alt="GIF 5" />
+  <img src="src/data_driven_simulation/6.gif" width="250" alt="GIF 6" />
+  <img src="src/data_driven_simulation/7.gif" width="250" alt="GIF 7" />
+  <img src="src/data_driven_simulation/8.gif" width="250" alt="GIF 8" />
+  <img src="src/data_driven_simulation/9.gif" width="250" alt="GIF 9" />
+  <img src="src/data_driven_simulation/10.gif" width="250" alt="GIF 10" />
+  <img src="src/data_driven_simulation/11.gif" width="250" alt="GIF 11" />
 </div>
 
 ## Large Scene generation
