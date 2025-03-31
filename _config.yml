@@ -1,5 +1,5 @@
 description: A fully data-driven vectorized generative simulator for autonomous driving.<br> Work by <a href="https://rluke22.github.io/">Luke Rowe</a>, <a href="https://mila.quebec/en/person/roger-girgis/">Roger Girgis</a>, <a href="https://www.linkedin.com/in/anthony-gosselin-098b7a1a1/?originalSubdomain=ca">Anthony Gosselin</a>, <a href="https://liampaull.ca/">Liam Paull</a>, <a href="https://sites.google.com/view/christopher-pal">Christopher Pal</a>, <a href="https://www.cs.princeton.edu/~fheide/">Felix Heide<a/><br><br> CVPR 2025
 theme: jekyll-theme-cayman
 links:
-  arxiv: https://arxiv.org/abs/2211.16197
+  arxiv: https://arxiv.org/abs/2503.22496
   code: https://github.com/princeton-computational-imaging/scenario-dreamer
