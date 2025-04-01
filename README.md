@@ -1,4 +1,4 @@
-# Official Repository for Scenario Dreamer
+# [CVPR 2025] Official Repository for Scenario Dreamer
 
 <p align="left">
 <a href="https://arxiv.org/abs/2503.22496" alt="arXiv">
