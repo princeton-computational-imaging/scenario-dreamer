@@ -14,8 +14,6 @@
 
 We propose Scenario Dreamer, a fully data-driven closed-loop generative simulator for autonomous vehicle planning.
 
-<br/>
-
 <video src="https://github.com/user-attachments/assets/83bcea5f-a459-45b7-8d36-eb9dd76e100a" width="250" height="250"></video>
 
 Table of Contents
