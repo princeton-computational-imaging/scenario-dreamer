@@ -16,9 +16,11 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 
 <br/>
 
-<video width="500" height="500" controls>
-  <source src="misc/twitter_video.mp4" type="video/mp4">
-</video>
+
+
+https://github.com/user-attachments/assets/3d68190a-bddd-4496-a5ef-a8b18a86b811
+
+
 
 Table of Contents
 =================
