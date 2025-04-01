@@ -1,4 +1,4 @@
-# [CVPR 2025] Official Repository for Scenario Dreamer
+# Official Repository for Scenario Dreamer
 
 <p align="left">
 <a href="https://arxiv.org/abs/2503.22496" alt="arXiv">
@@ -8,7 +8,12 @@
 <a href="https://paperswithcode.com/paper/scenario-dreamer-vectorized-latent-diffusion">
     <img alt="Static Badge" src="https://img.shields.io/badge/paper_with_code-link-turquoise?logo=paperswithcode" /></a>
 
-**[Luke Rowe](https://rluke22.github.io), [Roger Girgis](https://mila.quebec/en/person/roger-girgis/), [Anthony Gosselin](https://www.linkedin.com/in/anthony-gosselin-098b7a1a1/), [Liam Paull](https://liampaull.ca/), [Christopher Pal](https://sites.google.com/view/christopher-pal), [Felix Heide](https://www.cs.princeton.edu/~fheide/)**
+> [**Scenario Dreamer: Vectorized Latent Diffusion for Generating Driving Simulation Environments**](https://arxiv.org/abs/2503.22496)  <br>
+> [Luke Rowe](https://rluke22.github.io)<sup>1,2,6</sup>, [Roger Girgis](https://mila.quebec/en/person/roger-girgis/)<sup>1,3,6</sup>, [Anthony Gosselin](https://www.linkedin.com/in/anthony-gosselin-098b7a1a1/)<sup>1,3</sup>, [Liam Paull](https://liampaull.ca/)<sup>1,2,5</sup>, [Christopher Pal](https://sites.google.com/view/christopher-pal)<sup>1,2,3,5</sup>, [Felix Heide](https://www.cs.princeton.edu/~fheide/)<sup>4,6</sup>  <br>
+> <sup>1</sup> Mila, <sup>2</sup> Université de Montréal, <sup>3</sup> Polytechnique Montréal, <sup>4</sup> Princeton University, <sup>5</sup> CIFAR AI Chair, <sup>6</sup> Torc Robotics <br>
+> <br>
+> Computer Vision and Pattern Recognition (CVPR), 2025 <br>
+>
 
 **Code will be released by CVPR 2025.**
 
