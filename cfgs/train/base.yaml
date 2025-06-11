@@ -1,0 +1,28 @@
+seed: 0
+save_dir: ${scratch_root}/checkpoints/
+run_name: test
+wandb_project: decepticons
+wandb_entity: swish
+track: False
+accelerator: auto
+devices: 1 # set to 4 when multi-gpu training
+max_steps: 165000 # equivalent to 1000 epochs
+warmup_steps: 500  # one epoch with effective batch size 2056
+lr: 1e-4
+lr_schedule: constant # or linear
+beta_1: 0.9 # following SceneControl
+beta_2: 0.999 # following SceneControl
+epsilon: 10e-8 # following SceneControl
+weight_decay: 1e-5 # following SceneControl
+check_val_every_n_epoch: 2
+precision: 32-true # bf16-mixed for bfloat16 mixed precision or 32-true for regular
+limit_train_batches: 1.0
+limit_val_batches: 1.0
+gradient_clip_val: 10.0
+loss_type: l2
+num_samples_to_visualize: 10
+lane_weight: 10
+lane_conn_weight: 0.1
+classifier_free_guidance: True
+guidance_scale: 4.0
+stage: ldm # or autoencoder

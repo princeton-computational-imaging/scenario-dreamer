@@ -1,0 +1,20 @@
+dataset_path: ${dataset_root}/scenario_dreamer_waymo
+preprocess: True
+max_num_agents: 30
+max_num_lanes: 100
+upsample_lane_num_points: 1000
+remove_offroad_agents: True
+offroad_threshold: 1.5
+fov: 64 # in metres
+num_points_per_lane: 20
+# statistics taken from training dataset
+min_speed: 0
+max_speed: 114.088
+min_length: -0.098
+max_length: 22.929
+min_width: 0.096
+max_width: 12.527
+min_lane_x: -32
+max_lane_x: 32
+min_lane_y: -32
+max_lane_y: 32

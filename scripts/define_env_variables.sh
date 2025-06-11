@@ -1,0 +1,4 @@
+export PYTHONPATH=$(pwd):$PYTHONPATH
+export PROJECT_ROOT=$(pwd) 
+export DATASET_ROOT=$SCRATCH_ROOT
+export CONFIG_PATH=$PROJECT_ROOT/cfgs

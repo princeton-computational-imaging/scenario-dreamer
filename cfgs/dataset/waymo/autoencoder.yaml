@@ -1,0 +1,6 @@
+defaults:
+- base
+
+preprocess_dir: ${dataset_root}/scenario_dreamer_ae_preprocess_waymo
+generate_only_vehicles: False
+remove_left_right_connections: False

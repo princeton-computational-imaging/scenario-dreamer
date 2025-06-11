@@ -1,0 +1,48 @@
+scratch_root: ${oc.env:SCRATCH_ROOT}
+dataset_root: ${oc.env:DATASET_ROOT}
+project_root: ${oc.env:PROJECT_ROOT}
+waymo_data_folder: ${dataset_root}/waymo_open_dataset_motion_v_1_1_0
+waymo_train_folder: ${waymo_data_folder}/training
+waymo_val_folder: ${waymo_data_folder}/validation
+waymo_test_folder: ${waymo_data_folder}/testing
+
+hydra:
+  run:
+    dir: ${project_root}/slurm_logs/${now:%Y.%m.%d}/${now:%H.%M.%S}/${hydra.job.override_dirname}
+
+generate_waymo_dataset:
+  output_data_folder_train: ${dataset_root}/scenario_dreamer_waymo/train
+  output_data_folder_val: ${dataset_root}/scenario_dreamer_waymo/val
+  output_data_folder_test: ${dataset_root}/scenario_dreamer_waymo/test
+  num_workers: 8
+  mode: train
+  chunk_idx: -1
+  chunk_size: 50
+
+preprocess_waymo:
+  num_workers: 8
+  mode: train
+  chunk_idx: -1
+  chunk_size: 51000
+
+cache_latents:
+  enable_caching: False
+  split_name: train
+  chunk_idx: 0
+  chunk_size: 3000000
+  latent_dir: ${scratch_root}/scenario_dreamer_ae_latents_nov7
+
+defaults:
+  - dataset/waymo: latent_diffusion
+  - train: latent_diffusion
+
+# defaults:
+#   - eval: base
+#   - metrics: base
+#   - dataset/waymo: latent_diffusion
+#   - train: latent_diffusion
+#   - datamodule: latent_diffusion
+#   - model: autoencoder_waymo
+#   - ldm: dit_factorized
+#   - simulation: waymo_ctrl_sim
+#   - behaviour_model: ctrl_sim

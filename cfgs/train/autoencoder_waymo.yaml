@@ -1,0 +1,15 @@
+defaults:
+- base
+
+save_dir: ${scratch_root}/checkpoints/
+run_name: autoencoder
+max_steps: 350000 # 50 epochs
+warmup_steps: 1000
+lr: 1e-4
+lr_schedule: linear
+weight_decay: 1e-4
+check_val_every_n_epoch: 1
+kl_weight: 1e-2
+road_weight: 10
+road_conn_weight: 10 # 1
+cond_dis_weight: 0.1

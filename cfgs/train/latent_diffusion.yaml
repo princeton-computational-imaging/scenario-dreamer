@@ -1,0 +1,12 @@
+defaults:
+- base
+
+save_dir: ${scratch_root}/checkpoints/
+run_name: ldm
+lane_weight: 10
+regress_mean_latent: False
+lr_schedule: constant
+lr: 1e-4
+limit_val_batches: 1.0
+save_top_k: 0
+max_steps: 250000
