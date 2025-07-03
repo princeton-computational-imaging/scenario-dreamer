@@ -1,15 +1,14 @@
 defaults:
 - base
 
-save_dir: ${scratch_root}/checkpoints/
-run_name: autoencoder
-max_steps: 350000 # 50 epochs
-warmup_steps: 1000
-lr: 1e-4
-lr_schedule: linear
-weight_decay: 1e-4
-check_val_every_n_epoch: 1
-kl_weight: 1e-2
-road_weight: 10
-road_conn_weight: 10 # 1
-cond_dis_weight: 0.1
+stage: autoencoder # from base.yaml
+run_name: autoencoder # from base.yaml
+max_steps: 350000 # from base.yaml, 50 epochs
+warmup_steps: 1000 # from base.yaml
+lr_schedule: linear # from base.yaml
+weight_decay: 1e-4 # from base.yaml
+check_val_every_n_epoch: 1 # from base.yaml
+kl_weight: 1e-2 # weight of KL loss in VAE training (Beta in Beta-VAE)
+road_weight: 10 # TODO: different to lane_weight?
+road_conn_weight: 10 # 1 TODO: different to lane_conn_weight
+cond_dis_weight: 0.1 # weight of conditional lane distribution predictor

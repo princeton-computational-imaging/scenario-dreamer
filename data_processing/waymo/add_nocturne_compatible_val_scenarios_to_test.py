@@ -13,7 +13,7 @@ def add_val_to_test(cfg):
     print("Num test scenarios: ", len(os.listdir(cfg.generate_waymo_dataset.output_data_folder_test)))
     
     # list containing half of nocturne-compatible filenames in the validation set
-    with open(os.path.join(cfg.project_root, 'metadata', 'test_filenames.pkl', 'rb') as f:
+    with open(os.path.join(cfg.project_root, 'metadata', 'test_filenames.pkl'), 'rb') as f:
         test_filenames = pickle.load(f)
 
     for filename in tqdm(test_filenames):

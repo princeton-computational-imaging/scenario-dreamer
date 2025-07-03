@@ -1,5 +1,6 @@
 import math
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""    # hide GPUs
 import copy
 import pickle
 import hydra
@@ -432,6 +433,9 @@ def main(cfg):
 
     n_workers = min(cfg.generate_waymo_dataset.get("num_workers", mp.cpu_count()),
                     total_chunks)
+    print("Num workers: ", n_workers)
+    print("Total chunks: ", total_chunks)
+    print("Chunk size: ", cfg.generate_waymo_dataset.chunk_size)
     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 
     with mp.Pool(processes=n_workers) as pool:

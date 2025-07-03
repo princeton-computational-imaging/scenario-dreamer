@@ -1,13 +1,16 @@
 import numpy as np
 import torch
 np.set_printoptions(suppress=True)
+from utils.geometry import apply_se2_transform
 from torch_geometric.data import HeteroData
-
-def get_object_type_onehot(agent_type):
-    agent_types = {"unset": 0, "vehicle": 1, "pedestrian": 2, "cyclist": 3, "other": 4}
-    return np.eye(len(agent_types))[agent_types[agent_type]]
+from torch_geometric.data.storage import EdgeStorage
+import networkx as nx
+import copy
+import random
+from tqdm import tqdm
 
 def find_lane_groups(pre_pairs, suc_pairs):
+    """Group lane IDs into compact lanes based on lane compression algorithm originally described here: https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/00490-supp.pdf"""
     def dfs(lane_id, group):
         visited.add(lane_id)
         group.append(lane_id)
@@ -62,12 +65,16 @@ def find_lane_groups(pre_pairs, suc_pairs):
 
     return lane_groups_dict
 
+
 def find_lane_group_id(lane_id, lane_groups):
+    """Return the ID of the lane-group containing `lane_id`"""
     for lane_group_id in lane_groups:
         if lane_id in lane_groups[lane_group_id]:
             return lane_group_id
         
+
 def resample_polyline(points, num_points=20):
+    """Resample a polyline to `num_points` equally spaced points along its arc-length."""
     # Calculate the cumulative distances along the polyline
     distances = np.sqrt(((points[1:] - points[:-1])**2).sum(axis=1))
     cumulative_distances = np.insert(np.cumsum(distances), 0, 0)
@@ -84,7 +91,9 @@ def resample_polyline(points, num_points=20):
     
     return new_points
 
+
 def get_edge_index_bipartite(num_src, num_dst):
+    """Create a fully connected bipartite `edge_index` tensor from `num_src` to `num_dst` nodes."""
     # Create a meshgrid of all possible combinations of source and destination nodes
     src_indices = torch.arange(num_src)
     dst_indices = torch.arange(num_dst)
@@ -94,39 +103,10 @@ def get_edge_index_bipartite(num_src, num_dst):
     edge_index = torch.stack([src.flatten(), dst.flatten()], dim=0)
     return edge_index
 
+
 def get_edge_index_complete_graph(graph_size):
+    """Create a directed complete-graph `edge_index` tensor of size `graph_size`."""
     edge_index = torch.cartesian_prod(torch.arange(graph_size, dtype=torch.long),
                                       torch.arange(graph_size, dtype=torch.long)).t()
 
     return edge_index
-
-def get_lane_connection_type_onehot(lane_connection_type):
-    lane_connection_types = {"none": 0, "pred": 1, "succ": 2, "left": 3, "right": 4, "self": 5}
-    return np.eye(len(lane_connection_types))[lane_connection_types[lane_connection_type]]
-
-class ScenarioDreamerData(HeteroData):
-    def __inc__(self, key, value, store):
-        if 'edge_index' in key:
-            # Increment the edge indices based on the number of nodes in the source node type
-            if key[0] == 'agent' and key[2] == 'agent':
-                return torch.tensor([[store['agent'].num_nodes], [store['agent'].num_nodes]])
-            elif key[0] == 'lane' and key[2] == 'lane':
-                return torch.tensor([[store['lane'].num_nodes], [store['lane'].num_nodes]])
-            elif key[0] == 'lane' and key[2] == 'agent':
-                return torch.tensor([[store['lane'].num_nodes], [store['agent'].num_nodes]])
-            elif key[0] == 'agent' and key[2] == 'lane':
-                return torch.tensor([[store['agent'].num_nodes], [store['lane'].num_nodes]])
-        return super().__inc__(key, value, store)
-    
-def from_numpy(data):
-    """Recursively transform numpy.ndarray to torch.Tensor.
-    """
-    if isinstance(data, dict):
-        for key in data.keys():
-            data[key] = from_numpy(data[key])
-    if isinstance(data, list) or isinstance(data, tuple):
-        data = [from_numpy(x) for x in data]
-    if isinstance(data, np.ndarray):
-        """Pytorch now has bool type."""
-        data = torch.from_numpy(data)
-    return data

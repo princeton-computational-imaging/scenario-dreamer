@@ -14,9 +14,9 @@ generate_waymo_dataset:
   output_data_folder_train: ${dataset_root}/scenario_dreamer_waymo/train
   output_data_folder_val: ${dataset_root}/scenario_dreamer_waymo/val
   output_data_folder_test: ${dataset_root}/scenario_dreamer_waymo/test
-  num_workers: 8
+  num_workers: 20
   mode: train
-  chunk_idx: -1
+  chunk_idx: -1 # If chunk_idx >= 0, indexes into the chunk_idx'th chunk of size chunk_size. If chunk_idx=-1, process all chunks in parallel processes
   chunk_size: 50
 
 preprocess_waymo:
