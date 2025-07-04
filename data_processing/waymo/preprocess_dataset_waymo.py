@@ -54,6 +54,9 @@ def main(cfg):
     else:
         total_chunks = 1
 
+    if cfg.preprocess_waymo.mode == 'test':
+        cfg.preprocess_waymo.chunk_size = 61000 # test have 10000 scenes resampled from same scenarios
+
     n_workers = min(
         cfg.preprocess_waymo.get("num_workers", mp.cpu_count()),
         total_chunks

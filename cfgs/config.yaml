@@ -23,7 +23,7 @@ preprocess_waymo:
   num_workers: 8
   mode: train
   chunk_idx: -1
-  chunk_size: 51000
+  chunk_size: 50000
 
 cache_latents:
   enable_caching: False

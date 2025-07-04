@@ -50,7 +50,7 @@ export SCRATCH_ROOT=$(pwd) # prefer a separate drive? Point SCRATCH_ROOT there i
 
 Define environment variables to let the code know where things live:
 ```
-bash scripts/define_env_variables.sh
+source $(pwd)/scripts/define_env_variables.sh
 ```
 
 ### Conda Setup 
@@ -81,9 +81,9 @@ $SCRATCH_ROOT/waymo_open_dataset_motion_v_1_1_0/
     └── testing.tfrecord-00149-of-00150
 ```
 
-Then, we preprocess the waymo dataset to prepare for Scenario Dreamer model training:
+Then, we preprocess the waymo dataset to prepare for Scenario Dreamer model training. The first script takes ~12hrs and the second script takes ~12hrs (8 CPU cores, 64GB RAM):
 ```
-bash scripts/extract_data.sh # extract relevant data from tfrecords and create train/val/test splits
+bash scripts/extract_waymo_data.sh # extract relevant data from tfrecords and create train/val/test splits
 bash scripts/preprocess_waymo_dataset.sh # preprocess data to facilitate efficient model training
 ```
 
