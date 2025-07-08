@@ -39,7 +39,7 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 
 Start by cloning the repository
 ```
-git clone https://github.com/RLuke22/scenario-dreamer-waymo
+git clone https://github.com/princeton-computational-imaging/scenario-dreamer.git
 cd scenario-dreamer-waymo
 ```
 
