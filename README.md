@@ -23,13 +23,13 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 
 - [x] [06/11/2025] Environment setup
 - [x] [06/11/2025] Dataset Preprocessing
-- [ ] [ETA: 07/13/2025] Train Scenario Dreamer autoencoder model on Waymo
-- [ ] [ETA: 07/13/2025] Train Scenario Dreamer latent diffusion model on Waymo
-- [ ] [ETA: 07/13/2025] Support visualization of Scenario Dreamer initial scenes
-- [ ] [ETA: 07/13/2025] Support inpainting and lane-conditioned object generation modes on Waymo
-- [ ] [ETA: 07/31/2025] Support generation of large simulation environments
-- [ ] [ETA: 07/31/2025] Support evaluation of Scenario Dreamer model on Waymo
-- [ ] [ETA: 07/31/2025] Compatibility with nuPlan dataset
+- [ ] [ETA: 07/15/2025] Train Scenario Dreamer autoencoder model on Waymo
+- [ ] [ETA: 07/15/2025] Train Scenario Dreamer latent diffusion model on Waymo
+- [ ] [ETA: 07/15/2025] Support visualization of Scenario Dreamer initial scenes
+- [ ] [ETA: 07/15/2025] Support inpainting and lane-conditioned object generation modes on Waymo
+- [ ] [ETA: 07/15/2025] Compatibility with nuPlan dataset
+- [ ] [ETA: 07/15/2025] Support generation of large simulation environments
+- [ ] [ETA: 07/15/2025] Support evaluation of Scenario Dreamer model on Waymo
 - [ ] [ETA: 07/31/2025] Train CtRL-Sim behaviour model on Waymo
 - [ ] [ETA: 07/31/2025] Release of pre-trained Scenario Dreamer models on Waymo and nuPlan
 - [ ] [ETA: 07/31/2025] Train Scenario-Dreamer compatible agents in GPUDrive
