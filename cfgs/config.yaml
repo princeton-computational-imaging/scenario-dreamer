@@ -1,48 +1,51 @@
-scratch_root: ${oc.env:SCRATCH_ROOT}
-dataset_root: ${oc.env:DATASET_ROOT}
-project_root: ${oc.env:PROJECT_ROOT}
-waymo_data_folder: ${dataset_root}/waymo_open_dataset_motion_v_1_1_0
-waymo_train_folder: ${waymo_data_folder}/training
-waymo_val_folder: ${waymo_data_folder}/validation
-waymo_test_folder: ${waymo_data_folder}/testing
+scratch_root: ${oc.env:SCRATCH_ROOT} # scratch root directory, used for datasets and checkpoints
+dataset_root: ${oc.env:DATASET_ROOT} # root directory for datasets
+project_root: ${oc.env:PROJECT_ROOT} # project root directory
+waymo_data_folder: ${dataset_root}/waymo_open_dataset_motion_v_1_1_0 # path to the Waymo Open Dataset
+waymo_train_folder: ${waymo_data_folder}/training # path to the training set of the Waymo Open Dataset
+waymo_val_folder: ${waymo_data_folder}/validation # path to the validation set of the Waymo Open Dataset
+waymo_test_folder: ${waymo_data_folder}/testing # path to the testing set of the Waymo Open Dataset
 
 hydra:
   run:
     dir: ${project_root}/slurm_logs/${now:%Y.%m.%d}/${now:%H.%M.%S}/${hydra.job.override_dirname}
 
 generate_waymo_dataset:
-  output_data_folder_train: ${dataset_root}/scenario_dreamer_waymo/train
-  output_data_folder_val: ${dataset_root}/scenario_dreamer_waymo/val
-  output_data_folder_test: ${dataset_root}/scenario_dreamer_waymo/test
-  num_workers: 20
-  mode: train
+  output_data_folder_train: ${dataset_root}/scenario_dreamer_waymo/train # output folder for training data
+  output_data_folder_val: ${dataset_root}/scenario_dreamer_waymo/val # output folder for validation data
+  output_data_folder_test: ${dataset_root}/scenario_dreamer_waymo/test # output folder for test data
+  num_workers: 20 # number of workers to use for generating the dataset
+  mode: train # or val or test
   chunk_idx: -1 # If chunk_idx >= 0, indexes into the chunk_idx'th chunk of size chunk_size. If chunk_idx=-1, process all chunks in parallel processes
-  chunk_size: 50
+  chunk_size: 50 # size of each chunk to process in parallel processes, if chunk_idx >= 0
 
 preprocess_waymo:
-  num_workers: 8
-  mode: train
-  chunk_idx: -1
-  chunk_size: 50000
+  num_workers: 10 # number of workers to use for preprocessing the dataset
+  mode: train # or val or test
+  chunk_idx: -1 # If chunk_idx >= 0, indexes into the chunk_idx'th chunk of size chunk_size. If chunk_idx=-1, process all chunks in parallel processes
+  chunk_size: 50000 # size of each chunk to process in parallel processes, if chunk_idx >= 0
 
-cache_latents:
-  enable_caching: False
-  split_name: train
-  chunk_idx: 0
-  chunk_size: 3000000
-  latent_dir: ${scratch_root}/scenario_dreamer_ae_latents_nov7
+preprocess_nuplan:
+  num_workers: 10 # number of workers to use for preprocessing the dataset
+  mode: train # or val or test
+  chunk_idx: -1 # If chunk_idx >= 0, indexes into the chunk_idx'th chunk of size chunk_size. If chunk_idx=-1, process all chunks in parallel processes
+  chunk_size: 50000 # size of each chunk to process in parallel processes, if chunk_idx >= 0
 
+model_name: autoencoder # or ldm
+
+# hacky way to not have to manually change the dataset name in all config groups from command line
+# only dataset_name has to be configured from command line 
+# we have to define this as a group because Hydra resolves the defaults-list before it finishes building the root config
+# e.g. `python train.py dataset_name=waymo model_name=autoencoder`
 defaults:
-  - dataset/waymo: latent_diffusion
-  - train: latent_diffusion
-
-# defaults:
-#   - eval: base
-#   - metrics: base
-#   - dataset/waymo: latent_diffusion
-#   - train: latent_diffusion
-#   - datamodule: latent_diffusion
-#   - model: autoencoder_waymo
-#   - ldm: dit_factorized
-#   - simulation: waymo_ctrl_sim
-#   - behaviour_model: ctrl_sim
+  - dataset_name: waymo 
+  - dataset@ae.dataset:    ${dataset_name}_autoencoder
+  - train@ae.train:      ${dataset_name}_autoencoder
+  - eval@ae.eval:       ${dataset_name}_autoencoder
+  - model@ae.model:      ${dataset_name}_autoencoder
+  - datamodule@ae.datamodule: ${dataset_name}_autoencoder
+  - dataset@ldm.dataset:    ${dataset_name}_ldm
+  - train@ldm.train:      ${dataset_name}_ldm
+  - eval@ldm.eval:       ${dataset_name}_ldm
+  - model@ldm.model:      ${dataset_name}_ldm
+  - datamodule@ldm.datamodule: ${dataset_name}_ldm

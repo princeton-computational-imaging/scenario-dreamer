@@ -1,0 +1,31 @@
+# From https://github.com/motional/nuplan-devkit/blob/cd3fd8d3d0c4d390fcb74d05fd56f92d9e0c366b/nuplan/common/actor_state/vehicle_parameters.py#L125
+# 4.049 + 1.127
+ego_length: 5.176 # length of the ego vehicle in metres
+# 1.1485 * 2.0
+ego_width: 2.297 # width of the ego vehicle in metres
+fov: 64 # length = width of field of view in metres
+num_points_per_lane: 20 # number of points per lane in the FOV
+# we set these explicitly as numbers in 64x64 FOV are much larger than this
+# and we want to be consistent with SLEDGE for fair comparison
+max_num_vehicles: 31 # this includes the ego vehicle
+max_num_pedestrians: 10 # maximum number of pedestrians in the FOV
+max_num_static_objects: 20 # maximum number of static objects in the FOV
+max_num_agents: 61 # max_num_vehicles + max_num_pedestrians + max_num_static_objects 
+max_num_lanes: 100 # maximum number of lane segments in the FOV
+upsample_lane_num_points: 1000 # number of points per lane segment after upsampling
+num_agent_types: 3 # 0: vehicle, 1: pedestrian, 2: static object
+num_lane_types: 3 # 0: lane, 1: green light, 2: red light
+num_lane_connection_types: 4 # {"none": 0, "pred": 1, "succ": 2, "self": 3}
+num_map_ids: 4 # 4 cities in nuPlan dataset
+
+# statistics taken from training dataset
+min_speed: 0
+max_speed: 29.19
+min_length: 0.09
+max_length: 19.77
+min_width: 0.14
+max_width: 7.20
+min_lane_x: -32
+max_lane_x: 32
+min_lane_y: -32
+max_lane_y: 32

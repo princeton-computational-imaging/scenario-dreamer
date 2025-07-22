@@ -1,11 +1,9 @@
 import hydra
-import pickle
 import random
 from tqdm import tqdm
 from datasets.waymo.dataset_autoencoder_waymo import WaymoDatasetAutoEncoder
 from cfgs.config import CONFIG_PATH
 import multiprocessing as mp
-from pathlib import Path
 from omegaconf import OmegaConf
 
 # ───────────────────────────────────────────────────────────
@@ -24,8 +22,8 @@ def _run_one_cfg(cfg):
     random.seed(42)
 
     cfg.dataset_root = cfg.scratch_root
-    cfg.dataset.waymo.preprocess = False
-    dset = WaymoDatasetAutoEncoder(cfg, split_name=cfg.preprocess_waymo.mode)
+    cfg.ae.dataset.preprocess = False
+    dset = WaymoDatasetAutoEncoder(cfg.ae.dataset, split_name=cfg.preprocess_waymo.mode)
 
     start = cfg.preprocess_waymo.chunk_idx * cfg.preprocess_waymo.chunk_size
     end   = start + cfg.preprocess_waymo.chunk_size
@@ -34,9 +32,7 @@ def _run_one_cfg(cfg):
         return
 
     for idx in tqdm(chunk, position=0, leave=False):
-        with open(dset.files[idx], "rb") as f:
-            data = pickle.load(f)
-        dset.get_data(data, idx)
+        d = dset.get(idx)
 
 
 @hydra.main(version_base=None, config_path=CONFIG_PATH, config_name="config")
@@ -53,9 +49,10 @@ def main(cfg):
         total_chunks = 10
     else:
         total_chunks = 1
-
+    
     if cfg.preprocess_waymo.mode == 'test':
         cfg.preprocess_waymo.chunk_size = 61000 # test have 10000 scenes resampled from same scenarios
+        
 
     n_workers = min(
         cfg.preprocess_waymo.get("num_workers", mp.cpu_count()),

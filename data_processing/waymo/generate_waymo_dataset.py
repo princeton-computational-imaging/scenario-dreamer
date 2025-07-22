@@ -7,7 +7,6 @@ import hydra
 from tqdm import tqdm
 from omegaconf import OmegaConf
 
-import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 import multiprocessing as mp

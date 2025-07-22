@@ -1,0 +1,18 @@
+# architecture parameters
+autoencoder_run_name: null # Name of the autoencoder run
+autoencoder_path: null # Path to the pre-trained autoencoder checkpoint
+hidden_dim: 2048 # Hidden layer dimension for lane embeddings
+num_heads: 16 # Number of attention heads for *_to_lane attention layers
+agent_hidden_dim: 512 # Hidden layer dimension for agent embeddings
+agent_num_heads: 8 # Number of attention heads for *_to_agent attention layers
+num_factorized_dit_blocks: 2 # Number of factorized DiT blocks
+lane_latent_dim: 24 # Dimension of autoencoder lane latents
+agent_latent_dim: 8 # Dimension of autoencoder agent latents
+dropout: 0 # Dropout rate
+label_dropout: 0.1 # Dropout rate for labels for training (to enable classifier-free guidance at inference)
+num_l2l_blocks: 1 # Number of lane-to-lane blocks in each factorized DiT block
+
+# sampling parameters
+n_diffusion_timesteps: 100 # Number of diffusion timesteps
+lane_sampling_temperature: 0.75 # Sampling temperature for lane latents in diffusion
+diffusion_clip: 5 # clip value for diffusion

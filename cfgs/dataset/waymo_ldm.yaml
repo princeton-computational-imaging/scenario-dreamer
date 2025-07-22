@@ -1,0 +1,10 @@
+defaults:
+- waymo_base
+
+dataset_path: ${dataset_root}/scenario_dreamer_autoencoder_latents_waymo # path to dataset of latent cache for training ldm
+latent_stats_dir: ${project_root}/metadata/latent_stats # directory to save latent statistics (mean/std across training data for normalization)
+latent_stats_path: ${ldm.dataset.latent_stats_dir}/${ldm.model.autoencoder_run_name}.pkl # path to save latent statistics
+agent_latents_mean: null # mean of agent latents, to be computed from training data
+agent_latents_std: null # std of agent latents, to be computed from training data
+lane_latents_mean: null # mean of lane latents, to be computed from training data
+lane_latents_std: null # std of lane latents, to be computed from training data

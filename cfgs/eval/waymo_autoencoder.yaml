@@ -1,0 +1,16 @@
+defaults:
+- base
+
+run_name: scenario_dreamer_autoencoder_waymo # default run name for evaluation
+
+num_samples_to_visualize: 50 # number of samples to visualize during evaluation
+visualize_lane_graph: False # visualize lane graph in the evaluation results?
+viz_dir: ${project_root}/viz_eval_${ae.eval.run_name} # directory to save visualizations of generated samples
+
+# latent caching for ldm training (run as a separate job)
+cache_latents:
+  enable_caching: False # cache latents to disk?
+  split_name: train # which dataset split to cache latents for
+  latent_dir: ${scratch_root}/scenario_dreamer_autoencoder_latents_waymo # directory to cache latents to
+  nocturne_train_filenames_path: ${project_root}/metadata/nocturne_train_filenames.pkl # path to nocturne train filenames for caching latents
+  nocturne_val_filenames_path: ${project_root}/metadata/nocturne_val_filenames.pkl # path to nocturne val filenames for caching latents

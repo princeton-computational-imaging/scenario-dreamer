@@ -1,0 +1,28 @@
+# architecture configurations
+hidden_dim: 512 # lane hidden dimension
+num_encoder_blocks: 2 # number of factorized encoder blocks
+num_decoder_blocks: 2 # number of factorized decoder blocks
+lane_attr: 2 # number of lane attributes (x and y coordinates)
+num_heads: 4 # number of attention heads in *_to_lane attention layers
+dropout: 0 # dropout rate
+dim_f: 2048 # feedforward dimension in *_to_lane attention layers
+state_dim: 7 # agent feature dimension
+num_agent_types: 3 # number of agent types (car, pedestrian, cyclist)
+lane_conn_attr: null # number of lane connection attributes (none, pred, succ, left, right, self)
+num_lane_types: null # number of lane types (eg, lane, green light, red light)
+agent_hidden_dim: 256 # agent hidden dimension
+agent_num_heads: 4 # number of attention heads in *_to_agent attention layers
+agent_dim_f: 1024 # feedforward dimension in *_to_agent attention layers
+lane_conn_hidden_dim: 64 # lane connection hidden dimension
+lane_latent_dim: 24 # lane latent dimension
+agent_latent_dim: 8 # agent latent dimension
+
+# loss weights
+kl_weight: 1e-2 # weight of KL loss in VAE training (Beta in Beta-VAE)
+lane_weight: 10 # weight of lane prediction loss
+lane_conn_weight: 10 # weight of lane connection prediction loss
+cond_dis_weight: 0.1 # weight of conditional lane distribution predictor that predicts number of lanes in top half of scene conditioned on bottom half (used for inpainting)
+
+# ── dataset-derived constants pulled in by interpolation ── #
+num_points_per_lane: ${ae.dataset.num_points_per_lane}
+max_num_lanes:       ${ae.dataset.max_num_lanes}

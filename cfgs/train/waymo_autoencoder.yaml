@@ -1,0 +1,12 @@
+defaults:
+- base
+
+run_name: scenario_dreamer_autoencoder_waymo # from base.yaml
+max_steps: 350000 # from base.yaml
+warmup_steps: 1000 # from base.yaml
+lr_schedule: linear # from base.yaml
+weight_decay: 1e-4 # from base.yaml
+check_val_every_n_epoch: 1 # from base.yaml
+num_samples_to_visualize: 10 # from base.yaml
+viz_dir: ${project_root}/viz_val_${ae.train.run_name} # from base.yaml
+devices: 1 # from base.yaml

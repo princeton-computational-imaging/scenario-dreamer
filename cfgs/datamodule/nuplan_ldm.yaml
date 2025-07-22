@@ -1,0 +1,8 @@
+defaults:
+- base
+
+_target_: datamodules.nuplan.nuplan_datamodule_ldm.NuplanDataModuleLDM
+
+train_batch_size: 256
+val_batch_size: 256
+dataset_cfg: null

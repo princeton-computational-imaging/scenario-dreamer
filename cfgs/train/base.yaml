@@ -1,18 +1,18 @@
 ### training configurations
-stage: null
 seed: 0 # training seed for reproducibility
 save_dir: ${scratch_root}/checkpoints/ # directory to save checkpoints/log files
 run_name: null # name of saved directory for run
-wandb_project: decepticons # wandb project
-wandb_entity: swish # wandb entity
+wandb_project: scenario-dreamer # wandb project
+wandb_entity: null # wandb entity
 track: False # track to wandb
 accelerator: auto # pytorch lightning accelerator
-devices: 1 # number of gpus - set to 4 when multi-gpu training
+devices: null # number of gpus - set to 4 when multi-gpu training
 precision: 32-true # bf16-mixed for bfloat16 mixed precision or 32-true for regular
 check_val_every_n_epoch: 1 # interval at which we eval on val set
 limit_train_batches: 1.0 # proportion of training batches used (reduce for easier debugging)
 limit_val_batches: 1.0 # proportion of validation batches used (reduce for easier debugging)
-num_samples_to_visualize: 10
+num_samples_to_visualize: null # number of samples to visualize in each epoch of training
+viz_dir: null # directory to save visualizations
 
 ### optimizer configurations
 max_steps: null # number of training steps

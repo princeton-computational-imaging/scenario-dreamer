@@ -1,6 +1,7 @@
 import numpy as np
 
 def rotate_and_normalize_angles(current_angles, rotation_angle):
+    """ Rotates angles by a given rotation angle and normalizes them to be between -pi and pi."""
     # Calculate new angles
     new_angles = current_angles + rotation_angle
     # Normalize the angles to be between -pi and pi
@@ -36,5 +37,6 @@ def apply_se2_transform(coordinates, translation, yaw):
     return np.dot(transform, coordinates.T).T[:, :2]
 
 def radians_to_degrees(radians):
+    """ Converts radians to degrees."""
     degrees = radians * (180 / 3.141592653589793)
     return degrees

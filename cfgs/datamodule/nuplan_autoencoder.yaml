@@ -1,0 +1,9 @@
+defaults:
+- base
+
+_target_: datamodules.nuplan.nuplan_datamodule_autoencoder.NuplanDataModuleAutoEncoder
+
+train_batch_size: 128
+val_batch_size: 128
+dataset_cfg: null
+

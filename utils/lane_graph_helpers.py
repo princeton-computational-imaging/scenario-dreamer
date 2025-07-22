@@ -1,13 +1,6 @@
 import numpy as np
-import torch
 np.set_printoptions(suppress=True)
-from utils.geometry import apply_se2_transform
-from torch_geometric.data import HeteroData
-from torch_geometric.data.storage import EdgeStorage
 import networkx as nx
-import copy
-import random
-from tqdm import tqdm
 
 def find_lane_groups(pre_pairs, suc_pairs):
     """Group lane IDs into compact lanes based on lane compression algorithm originally described here: https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/00490-supp.pdf"""
@@ -92,21 +85,28 @@ def resample_polyline(points, num_points=20):
     return new_points
 
 
-def get_edge_index_bipartite(num_src, num_dst):
-    """Create a fully connected bipartite `edge_index` tensor from `num_src` to `num_dst` nodes."""
-    # Create a meshgrid of all possible combinations of source and destination nodes
-    src_indices = torch.arange(num_src)
-    dst_indices = torch.arange(num_dst)
-    src, dst = torch.meshgrid(src_indices, dst_indices, indexing='ij')
+def resample_lanes(lanes, num_points):
+    """Resample a list of lanes (each lane is a polyline) to have `num_points` equally spaced points along each lane's arc-length."""
+    lanes_resampled = []
+    for lane in lanes:
+        lanes_resampled.append(resample_polyline(lane, num_points=num_points))
 
-    # Flatten the meshgrid and stack them to create the edge_index
-    edge_index = torch.stack([src.flatten(), dst.flatten()], dim=0)
-    return edge_index
+    return np.array(lanes_resampled)
 
 
-def get_edge_index_complete_graph(graph_size):
-    """Create a directed complete-graph `edge_index` tensor of size `graph_size`."""
-    edge_index = torch.cartesian_prod(torch.arange(graph_size, dtype=torch.long),
-                                      torch.arange(graph_size, dtype=torch.long)).t()
+def adjacency_matrix_to_adjacency_list(lane_graph_adj):
+    """Convert an adjacency matrix to an adjacency list representation."""
+    num_lanes = len(lane_graph_adj)
+    
+    G = nx.DiGraph(incoming_graph_data=lane_graph_adj)
+    pre_pairs = {}
+    suc_pairs = {}
+    for lane_id in range(num_lanes):
+        pre_pairs[lane_id] = []
+        suc_pairs[lane_id] = []
 
-    return edge_index
+    for edge in G.edges():
+        pre_pairs[edge[1]].append(edge[0])
+        suc_pairs[edge[0]].append(edge[1])
+    
+    return pre_pairs, suc_pairs

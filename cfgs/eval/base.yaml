@@ -1,0 +1,3 @@
+seed: 0 # random seed for reproducibility
+save_dir: ${scratch_root}/checkpoints/ # save directory for evaluation results
+run_name: null # name of the run to be evaluated

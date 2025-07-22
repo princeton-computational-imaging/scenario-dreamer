@@ -1,0 +1,5 @@
+defaults:
+- autoencoder
+
+lane_conn_attr: ${ae.dataset.num_lane_connection_types} # number of lane connection types
+num_lane_types: ${ae.dataset.num_lane_types} # number of lane types

@@ -25,3 +25,4 @@ dependencies:
     - einops==0.8.0
     - Pillow==9.2.0
     - opencv-python==4.10.0.84
+    - gdown==5.2.0

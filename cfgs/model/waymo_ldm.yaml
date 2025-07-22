@@ -1,0 +1,6 @@
+defaults:
+- ldm
+
+# architecture parameters
+autoencoder_run_name: scenario_dreamer_autoencoder_waymo # Name of the autoencoder run
+autoencoder_path: ${scratch_root}/checkpoints/${ldm.model.autoencoder_run_name}/last.ckpt # Path to the pre-trained autoencoder checkpoint

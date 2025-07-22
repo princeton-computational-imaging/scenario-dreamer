@@ -1,0 +1,8 @@
+defaults:
+- waymo_base
+
+dataset_path: ${dataset_root}/scenario_dreamer_waymo # path to extracted waymo dataset that will be loaded and preprocessed
+preprocess: True # get data from preprocessed files if True, otherwise write preprocessed data to disk (you can only train with preprocess=True).
+preprocess_dir: ${dataset_root}/scenario_dreamer_ae_preprocess_waymo # directory to save preprocessed data for autoencoder training
+generate_only_vehicles: False # if True, train to only generate vehicle agents, otherwise generate all agents (vehicles, pedestrians, cyclists)
+remove_left_right_connections: False # if True, remove left and right lane lane connections from the dataset (only keep pre/succ), otherwise keep them

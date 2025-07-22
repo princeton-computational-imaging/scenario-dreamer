@@ -5,37 +5,30 @@ import hydra
 import torch
 import pickle
 import random
-import math
 import copy
 from tqdm import tqdm
-from typing import Any, Dict, List, Tuple, Optional, Union
+from typing import Any, Dict, List, Tuple, Union
 
-import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
-from matplotlib.patches import FancyArrowPatch
-from matplotlib.patches import Rectangle
-import matplotlib.patches as mpatches
-import matplotlib.transforms as transforms
 from torch_geometric.data import Dataset
-from torch_geometric.loader import DataLoader
 torch.set_printoptions(threshold=100000)
 import numpy as np
 np.set_printoptions(suppress=True, threshold=sys.maxsize)
-from cfgs.config import CONFIG_PATH
+from cfgs.config import CONFIG_PATH, PARTITIONED
 
 from utils.data_container import ScenarioDreamerData
-from utils.lane_graph_helpers import find_lane_groups, find_lane_group_id, resample_polyline, get_edge_index_bipartite, get_edge_index_complete_graph
-from utils.waymo_data_helpers import get_object_type_onehot, get_lane_connection_type_onehot
+from utils.lane_graph_helpers import find_lane_groups, find_lane_group_id, resample_polyline
+from utils.pyg_helpers import get_edge_index_bipartite, get_edge_index_complete_graph
+from utils.data_helpers import get_object_type_onehot_waymo, get_lane_connection_type_onehot_waymo, modify_agent_states, normalize_scene, randomize_indices
 from utils.torch_helpers import from_numpy
 from utils.geometry import apply_se2_transform, rotate_and_normalize_angles
 
 class WaymoDatasetAutoEncoder(Dataset):
     """A Torch-Geometric ``Dataset`` wrapping Waymo scenes for auto-encoding.
 
-    The dataset performs heavy on-the-fly processing of the extracted
-    Waymo Open Dataset pickles, including lane-graph extraction,
-    agent-state normalisation, partitioning for in-painting, and
-    optional pre-processing to disk.
+    The dataset performs processing of the extracted
+    Waymo Open Dataset pickles (obtained from a separate data extraction script), including lane-graph extraction,
+    agent-state normalisation, partitioning for in-painting. If preprocess=True, loads directly from preprocessed files
+    for efficient autoencoder training. If preprocess=False, saves preprocessed data to disk.
     """
 
     def __init__(self, cfg: Any, split_name: str = "train", mode: str = "train") -> None:
@@ -44,23 +37,21 @@ class WaymoDatasetAutoEncoder(Dataset):
         Parameters
         ----------
         cfg
-            Hydra configuration object (usually a ``DictConfig``) with
-            nested fields describing dataset and model parameters.
+            Hydra configuration object containing dataset configs (cfg.dataset in global config)
         split_name
             One of ``{"train", "val", "test"}`` selecting which split
-            to load from ``cfg.dataset.waymo.dataset_path``.
+            to load from ``cfg.dataset.dataset_path``.
         mode
-            "train" or "eval" – affects shuffling/randomisation inside
+            "train" or "eval" - affects shuffling/randomisation inside
             :meth:`get_data`.
         """
         super(WaymoDatasetAutoEncoder, self).__init__()
         self.cfg = cfg
-        self.cfg_dataset = cfg.dataset.waymo
-        self.data_root = self.cfg_dataset.dataset_path
+        self.data_root = self.cfg.dataset_path
         self.split_name = split_name 
         self.mode = mode
-        self.preprocess = self.cfg_dataset.preprocess
-        self.preprocessed_dir = os.path.join(self.cfg_dataset.preprocess_dir, f"{self.split_name}")
+        self.preprocess = self.cfg.preprocess
+        self.preprocessed_dir = os.path.join(self.cfg.preprocess_dir, f"{self.split_name}")
         if not os.path.exists(self.preprocessed_dir):
             os.makedirs(self.preprocessed_dir, exist_ok=True)
 
@@ -141,7 +132,7 @@ class WaymoDatasetAutoEncoder(Dataset):
             ag_width = np.ones((len(ag_position), 1)) * agents_data[n]['width']
             
             # Pack -------------------------------------------------------
-            agent_type = get_object_type_onehot(agents_data[n]['type'])
+            agent_type = get_object_type_onehot_waymo(agents_data[n]['type'])
             ag_state = np.concatenate((ag_position, ag_velocity, ag_heading, ag_length, ag_width, ag_existence), axis=-1)
             agent_data.append(ag_state)
             agent_types.append(agent_type)
@@ -156,7 +147,7 @@ class WaymoDatasetAutoEncoder(Dataset):
     def get_compact_lane_graph(self, data):
         """Apply lane graph compression algorithm (merging lanes that connect with node degree=2).
 
-        The resulting compact graph uses *lane‑group* identifiers where
+        The resulting compact graph uses *lane-group* identifiers where
         contiguous segments have been concatenated.  All
         connection dictionaries (``pre``, ``succ``, ``left``, ``right``)
         are updated to reference the new identifiers.
@@ -281,7 +272,7 @@ class WaymoDatasetAutoEncoder(Dataset):
     def partition_compact_lane_graph(self, compact_lane_graph: Dict[str, Any]) -> Dict[str, Any]:
         """Split lanes that cross the scene's x-axis (``y = 0``).
 
-        The original Waymo coordinate frame places the ego at ``(0, 0)``.
+        The coordinate frame places the ego at ``(0, 0)``.
         To simplify conditional generation (in-painting), we partition
         any merged *compact* lane that crosses ``y = 0`` into multiple
         *sub-lanes* so that the origin acts as a semantic divider.
@@ -423,12 +414,12 @@ class WaymoDatasetAutoEncoder(Dataset):
     def get_lane_graph_within_fov(self, lane_graph: Dict[str, Any]) -> Dict[str, Any]:
         """Return only those lanes that intersect the square *field-of-view*.
 
-        The Waymo coordinate frame is converted to an ego-centred frame
+        The coordinate frame is converted to an ego-centred frame
         earlier in the pipeline, so the autonomous vehicle (AV) is at
         the origin.  A lane point is considered *in view* when both its
         absolute X *and* Y coordinates are strictly smaller than
         ``cfg_dataset.fov / 2``.  Each retained lane is then resampled
-        to a fixed number of points for neural network processing.
+        to a fixed number of points.
 
         Parameters
         ----------
@@ -458,8 +449,8 @@ class WaymoDatasetAutoEncoder(Dataset):
         valid_pts = {}
         for lane_id in lane_ids:
             lane = lane_graph['lanes'][lane_id]
-            points_in_fov_x = np.abs(lane[:, 0]) < (self.cfg_dataset.fov / 2)
-            points_in_fov_y = np.abs(lane[:, 1]) < (self.cfg_dataset.fov / 2)
+            points_in_fov_x = np.abs(lane[:, 0]) < (self.cfg.fov / 2)
+            points_in_fov_y = np.abs(lane[:, 1]) < (self.cfg.fov / 2)
             points_in_fov = points_in_fov_x * points_in_fov_y
             
             if np.any(points_in_fov):
@@ -476,7 +467,10 @@ class WaymoDatasetAutoEncoder(Dataset):
         for lane_id in lane_ids_within_fov:
             if lane_id in lane_ids:
                 lane = lane_graph['lanes'][lane_id][valid_pts[lane_id]]
-                resampled_lane = resample_polyline(lane, num_points=self.cfg_dataset.upsample_lane_num_points)
+                # why upsample here instead of resample to self.cfg.num_points_per_lane?
+                # these lanes may need to be partitioned later, so we want to ensure high lane resolution
+                # for accurate partitioning. We resample to self.cfg.num_points_per_lane in get_road_points_adj
+                resampled_lane = resample_polyline(lane, num_points=self.cfg.upsample_lane_num_points)
                 lanes_within_fov[lane_id] = resampled_lane
             
             if lane_id in pre_pairs:
@@ -517,7 +511,7 @@ class WaymoDatasetAutoEncoder(Dataset):
         """This helper converts the *sparse*, dictionary-based lane graph
         representation that comes out of
         :meth:`get_compact_lane_graph` / :meth:`partition_compact_lane_graph`
-        into adjacency matrices.
+        into adjacency matrices and resamples lanes to num_points_per_lane points.
 
         Parameters
         ----------
@@ -547,7 +541,7 @@ class WaymoDatasetAutoEncoder(Dataset):
         i = 0
         for lane_id in compact_lane_graph['lanes']:
             lane = compact_lane_graph['lanes'][lane_id]
-            resampled_lane = resample_polyline(lane, num_points=self.cfg_dataset.num_points_per_lane)
+            resampled_lane = resample_polyline(lane, num_points=self.cfg.num_points_per_lane)
             resampled_lanes.append(resampled_lane)
             idx_to_id[i] = lane_id
             id_to_idx[lane_id] = i
@@ -556,7 +550,7 @@ class WaymoDatasetAutoEncoder(Dataset):
         
         # ── Step 2: keep the max_num_lanes closest to the origin ───────
         resampled_lanes = np.array(resampled_lanes)
-        num_lanes = min(len(resampled_lanes), self.cfg_dataset.max_num_lanes)
+        num_lanes = min(len(resampled_lanes), self.cfg.max_num_lanes)
         dist_to_origin = np.linalg.norm(resampled_lanes, axis=-1).min(1)
         closest_lane_ids = np.argsort(dist_to_origin)[:num_lanes]
         resampled_lanes = resampled_lanes[closest_lane_ids]
@@ -641,14 +635,14 @@ class WaymoDatasetAutoEncoder(Dataset):
                                     yaw=angle_of_rotation)[:, 0]
         agent_states[:, 4] = rotate_and_normalize_angles(agent_states[:, 4], angle_of_rotation)
 
-        agents_in_fov_x = np.abs(agent_states[:, 0]) < (self.cfg_dataset.fov / 2)
-        agents_in_fov_y = np.abs(agent_states[:, 1]) < (self.cfg_dataset.fov / 2)
+        agents_in_fov_x = np.abs(agent_states[:, 0]) < (self.cfg.fov / 2)
+        agents_in_fov_y = np.abs(agent_states[:, 1]) < (self.cfg.fov / 2)
         agents_in_fov_mask = agents_in_fov_x * agents_in_fov_y
         valid_agents = np.where(agents_in_fov_mask > 0)[0]
         
         dist_to_origin = np.linalg.norm(agent_states[:, :2], axis=-1)
         # up to max_num_agents agents
-        closest_ag_ids = np.argsort(dist_to_origin)[:self.cfg_dataset.max_num_agents]
+        closest_ag_ids = np.argsort(dist_to_origin)[:self.cfg.max_num_agents]
         closest_ag_ids = closest_ag_ids[np.in1d(closest_ag_ids, valid_agents)]
 
         new_agent_states = agent_states[closest_ag_ids]
@@ -695,7 +689,7 @@ class WaymoDatasetAutoEncoder(Dataset):
         road_pts = np.concatenate(road_pts, axis=0)
 
         agent_road_dist = np.linalg.norm(non_ego_agent_states[:, np.newaxis, :2] - road_pts[np.newaxis, :, :], axis=-1).min(1)
-        offroad_mask = agent_road_dist > self.cfg_dataset.offroad_threshold
+        offroad_mask = agent_road_dist > self.cfg.offroad_threshold
         vehicle_mask = non_ego_agent_types[:, 1].astype(bool)
         offroad_vehicle_mask = offroad_mask * vehicle_mask
 
@@ -705,110 +699,6 @@ class WaymoDatasetAutoEncoder(Dataset):
         filtered_types = np.concatenate([agent_types[:1], non_ego_agent_types[onroad_agents]], axis=0)
 
         return filtered_states, filtered_types
-
-
-    def modify_agent_states(self, agent_states):
-        """Canonicalise velocity & heading for neural consumption. All remaining trailing columns (if any) are copied verbatim.
-
-        Parameters
-        ----------
-        agent_states : np.ndarray
-            Float32 array of shape ``(N, D)`` where columns ``2-4`` are
-            ``vx``, ``vy``, and ``yaw`` respectively.
-
-        Returns
-        -------
-        new_agent_states : np.ndarray
-            Array with the *same* shape ``(N, D)`` where columns ``2-4``
-            have been replaced by ``speed``, ``cosθ``, ``sinθ``.
-        """
-        new_agent_states = np.zeros_like(agent_states)
-        new_agent_states[:, :2] = agent_states[:, :2]
-        new_agent_states[:, 5:] = agent_states[:, 5:]
-        new_agent_states[:, 2] = np.sqrt(agent_states[:, 2] ** 2 + agent_states[:, 3] ** 2)
-        new_agent_states[:, 3] = np.cos(agent_states[:, 4])
-        new_agent_states[:, 4] = np.sin(agent_states[:, 4])
-
-        return new_agent_states
-
-
-    def normalize_scene(
-        self,
-        agent_states: np.ndarray,
-        road_points: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Min-max normalise agent and lane features into **[-1, 1]**.
-
-        Parameters
-        ----------
-        agent_states : np.ndarray
-            Float tensor of shape ``(N, 7)`` produced by
-            :meth:`modify_agent_states` (excluding the existence dimension).
-        road_points : np.ndarray
-            Tensor of shape ``(L, 20, 2)`` containing lane
-            polylines.
-
-        Returns
-        -------
-        agent_states_norm : np.ndarray
-            The *same* reference as ``agent_states`` after normalisation.
-        road_points_norm : np.ndarray
-            The *same* reference as ``road_points`` after normalisation.
-        """
-        
-        # pos_x
-        agent_states[:, 0] = 2 * ((agent_states[:, 0] - (-1 * self.cfg_dataset.fov/2))
-                             / self.cfg_dataset.fov) - 1
-        # pos_y
-        agent_states[:, 1] = 2 * ((agent_states[:, 1] - (-1 * self.cfg_dataset.fov/2))
-                             / self.cfg_dataset.fov) - 1
-        # speed
-        agent_states[:, 2] = 2 * ((agent_states[:, 2] - (self.cfg_dataset.min_speed))
-                             / (self.cfg_dataset.max_speed - self.cfg_dataset.min_speed)) - 1
-        # length
-        agent_states[:, 5] = 2 * ((agent_states[:, 5] - (self.cfg_dataset.min_length))
-                             / (self.cfg_dataset.max_length - self.cfg_dataset.min_length)) - 1
-        # width
-        agent_states[:, 6] = 2 * ((agent_states[:, 6] - (self.cfg_dataset.min_width))
-                             / (self.cfg_dataset.max_width - self.cfg_dataset.min_width)) - 1
-        
-        # road pos_x
-        road_points[:, :, 0] = 2 * ((road_points[:, :, 0] - (self.cfg_dataset.min_lane_x))
-                             / (self.cfg_dataset.max_lane_x - self.cfg_dataset.min_lane_x)) - 1
-        road_points[:, :, 1] = 2 * ((road_points[:, :, 1] - (self.cfg_dataset.min_lane_y))
-                             / (self.cfg_dataset.max_lane_y - self.cfg_dataset.min_lane_y)) - 1
-
-        return agent_states, road_points
-
-
-    def randomize_indices(
-        self,
-        agent_states: np.ndarray,
-        agent_types: np.ndarray,
-        road_points: np.ndarray,
-        edge_index_lane_to_lane: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Randomly permute non-ego agents and lane order during training."""
-        non_ego_agent_states = agent_states[1:]
-        non_ego_agent_types = agent_types[1:]
-
-        num_non_ego_agents = len(non_ego_agent_states)
-        perm = np.arange(num_non_ego_agents)
-        np.random.shuffle(perm)
-        non_ego_agent_states = non_ego_agent_states[perm]
-        non_ego_agent_types = non_ego_agent_types[perm]
-
-        agent_states = np.concatenate([agent_states[:1], non_ego_agent_states], axis=0)
-        agent_types = np.concatenate([agent_types[:1], non_ego_agent_types], axis=0)
-
-        lane_perm = np.arange(len(road_points))
-        np.random.shuffle(lane_perm)
-        road_points = road_points[lane_perm]
-        
-        old_index_positions = np.argsort(lane_perm)
-        edge_index_lane_to_lane_new = old_index_positions[edge_index_lane_to_lane]
-
-        return agent_states, agent_types, road_points, edge_index_lane_to_lane_new
 
     
     def get_partitioned_masks(
@@ -877,34 +767,8 @@ class WaymoDatasetAutoEncoder(Dataset):
     ) -> Union[Dict[str, Any], ScenarioDreamerData]:
         """Process **one** Waymo scenario.
 
-        This *monolithic* routine underpins the entire dataset pipeline
-        and supports **two execution modes** controlled by the Hydra
-        flag ``cfg.dataset.waymo.preprocess``:
-
-        1. **Fast path (`self.preprocess = True`)**
-            The caller has supplied a *cached* dictionary (pre-processed files) whose keys are
-            already PyTorch-ready tensors (``"agent_states"``,
-            ``"road_points"``, etc.).  We perform the remaining lightweight
-            operations—normalisation, optional index randomisation, mask
-            generation—and wrap everything into a hetero
-            :class:`torch_geometric.data.HeteroData` (aliased here as
-            ``ScenarioDreamerData``).
-
-        2. **Slow path (`self.preprocess = False`)**
-            The input ``data`` is a *raw* extracted Waymo pickle.  The method then carries out the entire
-            pre-processing pipeline:
-
-            * **Time-step sampling** - pick a random frame where the ego
-                vehicle exists to serve as the scene snapshot.
-            * **Lane-graph extraction** - build *compact* and *partitioned*
-                lane graphs, then crop to the square field-of-view (FOV).
-            * **Agent processing** - filter to visible agents, optionally
-                drop off-road vehicles, convert velocities/angles to
-                `(speed, cosθ, sinθ)` form, and cap the count at
-                ``cfg_dataset.max_num_agents``.
-            * **Caching** - serialise the resulting dictionary to
-                ``cfg.dataset.waymo.preprocess_dir`` so that subsequent
-                processing can take the fast path.
+        if preprocess=True: read from cached preprocessed pickle and return ScenarioDreamerData object for autoencoder training
+        if preprocess=False: cache processed data as pickle file to disk to reduce data processing overhead during autoencoder training.
 
         Parameters
         ----------
@@ -985,7 +849,7 @@ class WaymoDatasetAutoEncoder(Dataset):
 
             # Filter agents: existence mask + class filter + FOV crop
             exists_mask = copy.deepcopy(agent_states_all[:, scene_timestep, -1]).astype(bool)
-            if self.cfg_dataset.generate_only_vehicles:
+            if self.cfg.generate_only_vehicles:
                 agent_mask = copy.deepcopy(agent_types_all[:, 1]).astype(bool)
             else:
                 agent_mask = copy.deepcopy(agent_types_all[:, 1] + agent_types_all[:, 2] + agent_types_all[:, 3]).astype(bool)
@@ -997,12 +861,12 @@ class WaymoDatasetAutoEncoder(Dataset):
             agent_states, agent_types = self.get_agents_within_fov(agent_states, agent_types, normalize_dict)
 
             # Optional off‑road removal (vehicles only) -----------------
-            if self.cfg_dataset.remove_offroad_agents:
+            if self.cfg.remove_offroad_agents:
                 # this only removes offroad vehicles
                 agent_states, agent_types = self.remove_offroad_agents(agent_states, agent_types, compact_lane_graph_scene['lanes'])
             
             # Replace (vx,vy,yaw) with (speed,cosθ,sinθ) ----------------
-            agent_states = self.modify_agent_states(agent_states)
+            agent_states = modify_agent_states(agent_states)
             num_agents = len(agent_states)
             
             if num_agents == 0 or len(compact_lane_graph_scene['lanes']) == 0:
@@ -1029,22 +893,25 @@ class WaymoDatasetAutoEncoder(Dataset):
                 
                 road_connection_types = []
                 for i in range(edge_index_lane_to_lane.shape[1]):
+                    # taking the index at 1 in the first position is unintuitive, so we explain more clearly:
+                    # if pre_road_adj[i, j] = 1, then j is in i's list of predecessors, which means we want
+                    # j --- (pred) ---> i, or the road_connection_type for edge (j,i) is 'pred'
                     pre_conn_indicator = pre_road_adj[edge_index_lane_to_lane[1, i], edge_index_lane_to_lane[0, i]]
                     suc_conn_indicator = suc_road_adj[edge_index_lane_to_lane[1, i], edge_index_lane_to_lane[0, i]]
                     left_conn_indicator = left_road_adj[edge_index_lane_to_lane[1, i], edge_index_lane_to_lane[0, i]]
                     right_conn_indicator = right_road_adj[edge_index_lane_to_lane[1, i], edge_index_lane_to_lane[0, i]]
                     if edge_index_lane_to_lane[1, i] == edge_index_lane_to_lane[0, i]:
-                        road_connection_types.append(get_lane_connection_type_onehot('self'))
+                        road_connection_types.append(get_lane_connection_type_onehot_waymo('self'))
                     elif pre_conn_indicator:
-                        road_connection_types.append(get_lane_connection_type_onehot('pred'))
+                        road_connection_types.append(get_lane_connection_type_onehot_waymo('pred'))
                     elif suc_conn_indicator:
-                        road_connection_types.append(get_lane_connection_type_onehot('succ'))
+                        road_connection_types.append(get_lane_connection_type_onehot_waymo('succ'))
                     elif left_conn_indicator:
-                        road_connection_types.append(get_lane_connection_type_onehot('left'))
+                        road_connection_types.append(get_lane_connection_type_onehot_waymo('left'))
                     elif right_conn_indicator:
-                        road_connection_types.append(get_lane_connection_type_onehot('right'))
+                        road_connection_types.append(get_lane_connection_type_onehot_waymo('right'))
                     else:
-                        road_connection_types.append(get_lane_connection_type_onehot('none'))
+                        road_connection_types.append(get_lane_connection_type_onehot_waymo('none'))
                 road_connection_types = np.array(road_connection_types)
 
                 ### FOR TESTING VISUALIZATION PURPOSES
@@ -1184,16 +1051,35 @@ class WaymoDatasetAutoEncoder(Dataset):
         # ───────────────────────────────────────────────────────────────
         
         # Feature normalisation (into [‑1,1]) ----------------------
-        agent_states, road_points = self.normalize_scene(agent_states, road_points)
+        agent_states, road_points = normalize_scene(
+            agent_states, 
+            road_points,
+            fov=self.cfg.fov,
+            min_speed=self.cfg.min_speed,
+            max_speed=self.cfg.max_speed,
+            min_length=self.cfg.min_length,
+            max_length=self.cfg.max_length,
+            min_width=self.cfg.min_width,
+            max_width=self.cfg.max_width,
+            min_lane_x=self.cfg.min_lane_x,
+            min_lane_y=self.cfg.min_lane_y,
+            max_lane_x=self.cfg.max_lane_x,
+            max_lane_y=self.cfg.max_lane_y)
 
         # Training‑only randomisation of non‑ego indices ----------
         if self.mode == 'train':
-            agent_states, agent_types, road_points, edge_index_lane_to_lane = self.randomize_indices(agent_states, agent_types, road_points, edge_index_lane_to_lane)
+            agent_states, agent_types, road_points, edge_index_lane_to_lane = randomize_indices(agent_states, agent_types, road_points, edge_index_lane_to_lane)
             edge_index_lane_to_lane = torch.from_numpy(edge_index_lane_to_lane)
         
         # Partition masks (only for partitioned lane graph) ---------
-        if lg_type == 1:
-            a2a_mask, l2l_mask, l2a_mask, lane_partition_mask = self.get_partitioned_masks(agent_states, road_points, edge_index_agent_to_agent, edge_index_lane_to_lane, edge_index_lane_to_agent)
+        if lg_type == PARTITIONED:
+            a2a_mask, l2l_mask, l2a_mask, lane_partition_mask = self.get_partitioned_masks(
+                agent_states, 
+                road_points, 
+                edge_index_agent_to_agent, 
+                edge_index_lane_to_lane, 
+                edge_index_lane_to_agent)
+            
             agents_y = agent_states[:, 1]
             lanes_y = road_points[:, 9, 1]
             num_agents_after_origin = len(np.where(agents_y > 0)[0])
@@ -1212,7 +1098,7 @@ class WaymoDatasetAutoEncoder(Dataset):
         assert l2a_mask.shape[0] == edge_index_lane_to_agent.shape[1]
         assert lane_partition_mask.shape[0] == num_lanes
 
-        if self.cfg_dataset.remove_left_right_connections: 
+        if self.cfg.remove_left_right_connections: 
             # remove left and right connections for evaluation
             road_connection_types = road_connection_types[:, [0,1,2,5]]
 
@@ -1261,7 +1147,6 @@ class WaymoDatasetAutoEncoder(Dataset):
         # --------------------------------------------------------------
         # ️Assemble final PyG heterogeneous graph ------------------
         # --------------------------------------------------------------
-        d = dict()
         d = ScenarioDreamerData()
         d['idx'] = idx
         d['num_lanes'] = num_lanes 
@@ -1287,7 +1172,7 @@ class WaymoDatasetAutoEncoder(Dataset):
     
     
     def get(self, idx: int):
-        if not self.cfg_dataset.preprocess:
+        if not self.cfg.preprocess:
             with open(self.files[idx], 'rb') as file:
                 data = pickle.load(file)
             d = self.get_data(data, idx)
@@ -1307,8 +1192,8 @@ class WaymoDatasetAutoEncoder(Dataset):
 
 @hydra.main(version_base=None, config_path=CONFIG_PATH, config_name="config")
 def main(cfg):
-    cfg.dataset.waymo.preprocess = False
-    dset = WaymoDatasetAutoEncoder(cfg, split_name='train')
+    cfg.ae.dataset.preprocess = False
+    dset = WaymoDatasetAutoEncoder(cfg.ae.dataset, split_name='train')
     print(len(dset))
     np.random.seed(10)
     random.seed(10)

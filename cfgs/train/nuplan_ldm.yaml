@@ -1,0 +1,19 @@
+defaults:
+- base
+
+run_name: scenario_dreamer_ldm_base_nuplan # from base.yaml
+lr_schedule: constant # from base.yaml
+save_top_k: 0 # only save latest checkpoint
+max_steps: 165000 # from base.yaml
+warmup_steps: 500 # from base.yaml
+weight_decay: 1e-5 # from base.yaml
+check_val_every_n_epoch: 2 # from base.yaml
+ema_decay: 0.9999 # EMA decay for model weights
+guidance_scale: 4.0 # guidance scale for classifier-free guidance
+devices: 4 # from base.yaml
+num_samples_to_visualize: 10 # from base.yaml
+viz_dir: ${project_root}/viz_val_${ldm.train.run_name} # from base.yaml
+
+# this is only computed once at the start of training
+num_batches_compute_stats: 250 # number of batches to compute mean/std of latents for normalization
+batch_size_compute_stats: 1024 # batch size for computing mean/std of latents

@@ -1,0 +1,5 @@
+train_batch_size: null # train batch size (per-GPU)
+val_batch_size: null # validation batch size (per-GPU)
+num_workers: 6 # Datamodule workers
+pin_memory: True # Pin memory for dataloader
+persistent_workers: True # Keep dataloader workers persistent across epochs

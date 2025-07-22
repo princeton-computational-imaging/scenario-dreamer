@@ -1,0 +1,24 @@
+dataset_path: null
+max_num_agents: 30 # maximum number of agents in the FOV, including the ego vehicle
+max_num_lanes: 100 # maximum number of lane segments in the FOV
+upsample_lane_num_points: 1000 # number of points per lane segment after upsampling
+remove_offroad_agents: True # if True, remove agents that are offroad (i.e. more than 1.5m from lane segment), otherwise keep them
+offroad_threshold: 1.5 # threshold for offroad agents in metres
+fov: 64 # in metres
+num_points_per_lane: 20 # number of points per lane segment
+num_agent_types: 3 # 0: vehicle, 1: pedestrian, 2: cyclist
+num_lane_types: 0 # all lanes
+num_lane_connection_types: 6 # {"none": 0, "pred": 1, "succ": 2, "left": 3, "right": 4, "self": 5}
+num_map_ids: 2 # either nocturne_compatible (1) or not (0) used for sampling GPU-Drive compatible scenes
+
+# statistics taken from training dataset
+min_speed: 0
+max_speed: 114.088
+min_length: -0.098
+max_length: 22.929
+min_width: 0.096
+max_width: 12.527
+min_lane_x: -32
+max_lane_x: 32
+min_lane_y: -32
+max_lane_y: 32
