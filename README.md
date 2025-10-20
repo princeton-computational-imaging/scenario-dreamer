@@ -32,12 +32,12 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 - [x] [07/21/2025] Support computing evaluation metrics
 - [x] [07/21/2025] Release of pre-trained Scenario Dreamer checkpoints
 - [x] [07/21/2025] Support lane-conditioned object generation
-- [ ] [ETA: 10/17/2025] Support inpainting generation mode
-- [ ] [ETA: 10/17/2025] Support generation of large simulation environments
-- [ ] [ETA: 10/17/2025] Train CtRL-Sim behaviour model on Waymo
-- [ ] [ETA: 10/17/2025] Train Scenario-Dreamer compatible agents in GPUDrive
-- [ ] [ETA: 10/17/2025] Evaluate planners in Scenario Dreamer environments
-- [ ] [ETA: 10/17/2025] SLEDGE baseline reproduction and evaluation
+- [ ] [ETA: 10/24/2025] Support inpainting generation mode
+- [ ] [ETA: 10/24/2025] Support generation of large simulation environments
+- [ ] [ETA: 10/24/2025] Train CtRL-Sim behaviour model on Waymo
+- [ ] [ETA: 10/24/2025] Train Scenario-Dreamer compatible agents in GPUDrive
+- [ ] [ETA: 10/24/2025] Evaluate planners in Scenario Dreamer environments
+- [ ] [ETA: 10/24/2025] SLEDGE baseline reproduction and evaluation
 
 ## Table of Contents
 1. [Setup](#setup)
