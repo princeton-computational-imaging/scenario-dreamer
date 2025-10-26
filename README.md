@@ -32,12 +32,11 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 - [x] [07/21/2025] Support computing evaluation metrics
 - [x] [07/21/2025] Release of pre-trained Scenario Dreamer checkpoints
 - [x] [07/21/2025] Support lane-conditioned object generation
-- [ ] [ETA: 10/24/2025] Support inpainting generation mode
-- [ ] [ETA: 10/24/2025] Support generation of large simulation environments
-- [ ] [ETA: 10/24/2025] Train CtRL-Sim behaviour model on Waymo
-- [ ] [ETA: 10/24/2025] Train Scenario-Dreamer compatible agents in GPUDrive
-- [ ] [ETA: 10/24/2025] Evaluate planners in Scenario Dreamer environments
-- [ ] [ETA: 10/24/2025] SLEDGE baseline reproduction and evaluation
+- [x] [10/25/2025] Support inpainting generation mode
+- [ ] [ETA: 10/26/2025] Support generation of large simulation environments
+- [ ] [ETA: 10/27/2025] Train CtRL-Sim behaviour model on Waymo
+- [ ] [ETA: 10/31/2025] Evaluate planners in Scenario Dreamer environments
+- [ ] [ETA: 10/31/2025] Train Scenario-Dreamer compatible agents in GPUDrive
 
 ## Table of Contents
 1. [Setup](#setup)
@@ -346,6 +345,7 @@ python eval.py \
 
 ### 🚀 Generate Scenes with LDM
 
+<a id="initial-scene-generation"></a>
 <details>
 <summary><strong>Initial Scene Generation</strong></summary>
 
@@ -378,7 +378,7 @@ To additionally cache the samples to disk for metrics computation, set `ldm.eval
 
 - 100 samples will be generated on 1 GPU with a default batch size of 32. 
 - The samples will be visualized to `$PROJECT_ROOT/viz_gen_samples_[your_ldm_run_name]`.
-- If you toggle `ldm.eval.cache_samples=True`, samples will be cached to `$SCRATCH_ROOT/checkpoints/[your_ldm_run_name]/samples`.
+- If you toggle `ldm.eval.cache_samples=True`, samples will be cached to `$SCRATCH_ROOT/checkpoints/[your_ldm_run_name]/initial_scene_samples`.
 
 </details>
 
@@ -424,7 +424,40 @@ This will load lane latents from the validation set for conditioning. You can ad
 
 <details> <summary><strong>Inpainting Generation</strong></summary>
 
-TBD
+<details> <summary><strong>1. Prerequisites</strong></summary>
+
+- Verify that you have a trained autoencoder and ldm.
+- Verify that you have generated and cached a set of scenarios by following the steps in [Initial Scene Generation](#initial-scene-generation). By default,
+the scenarios are saved to `/path/to/ldm/checkpoint/initial_scene_samples`. 
+
+</details>
+
+<details> <summary><strong>2. Generate and Visualize Samples</strong></summary>
+
+To generate and visualize 100 inpainted scenes from your trained model:
+```bash
+python eval.py \
+  dataset_name=[waymo|nuplan] \
+  model_name=ldm \
+  ldm.eval.mode=inpainting \
+  ldm.model.num_l2l_blocks=[1|3] \ # base model has 1 l2l block, large model has 3
+  ldm.eval.run_name=[your_ldm_run_name] \
+  ldm.model.autoencoder_run_name=[your_autoencoder_run_name] \
+  ldm.eval.conditioning_path=${SCRATCH_ROOT}/checkpoints/[your_ldm_run_name]/initial_scene_samples \
+  ldm.eval.num_samples=100 \
+  ldm.eval.visualize=True
+```
+
+This script will load each of the initial scenes, randomly sample a valid route for the ego (as a sequence of lane segments), renormalize the scene to the end of the route, and then run an inpainting forward pass. You can adjust `ldm.eval.num_samples` to configure the number of samples generated, but ensure that you have cached a sufficient number of initial scenes.
+
+</details>
+
+<details> <summary><strong>3. What to Expect</strong></summary>
+
+- 100 inpainted samples will be generated on 1 GPU with a default batch size of 32. 
+- The inpainted samples will be visualized to `$PROJECT_ROOT/viz_gen_samples_[your_ldm_run_name]`.
+
+</details>
 
 </details>
 

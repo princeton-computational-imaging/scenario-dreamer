@@ -14,7 +14,7 @@ cache_samples: False # cache samples to disk?
 conditioning_path: null # optional path to conditioning data for lane-conditioned or inpainting evaluation
 
 metrics:
-  samples_path: ${dataset_root}/checkpoints/${ldm.eval.run_name}/samples # path to load generated samples
+  samples_path: ${dataset_root}/checkpoints/${ldm.eval.run_name}/initial_scene_samples # path to load generated samples
   metrics_save_path: ${dataset_root}/checkpoints/${ldm.eval.run_name} # path to save metrics
   eval_set: ${project_root}/metadata/waymo_eval_set.pkl # pickle containing paths to ground-truth samples for metrics computation
   gt_test_dir: ${dataset_root}/scenario_dreamer_ae_preprocess_waymo/test # directory containing ground-truth agent/lane data for metrics computation

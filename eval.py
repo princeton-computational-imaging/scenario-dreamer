@@ -39,9 +39,10 @@ def eval_ldm(cfg, cfg_ae, save_dir=None):
             cache_samples = cfg.eval.cache_samples,
             visualize = cfg.eval.visualize,
             conditioning_path = cfg.eval.conditioning_path,
-            cache_dir = os.path.join(save_dir, 'samples'),
+            cache_dir = os.path.join(save_dir, f'{cfg.eval.mode}_samples'),
             viz_dir = cfg.eval.viz_dir,
-            save_wandb = False
+            save_wandb = False,
+            return_samples=False,
         )
     else:
         metric_evaluator = Metrics(cfg)

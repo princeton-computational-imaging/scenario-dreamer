@@ -8,6 +8,10 @@ def rotate_and_normalize_angles(current_angles, rotation_angle):
     normalized_angles = (new_angles + np.pi) % (2 * np.pi) - np.pi
     return normalized_angles
 
+def normalize_angle(angle):
+    """ Normalizes angle to be between -pi and pi."""
+    return np.arctan2(np.sin(angle), np.cos(angle))
+
 def dot_product_2d(a, b):
     """Computes the dot product of 2d vectors."""
     return a[..., 0] * b[..., 0] + a[..., 1] * b[..., 1]

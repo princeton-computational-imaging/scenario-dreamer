@@ -10,7 +10,8 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.data import Batch
 from cfgs.config import PROPORTION_NOCTURNE_COMPATIBLE, NON_PARTITIONED
 from utils.pyg_helpers import get_edge_index_complete_graph, get_edge_index_bipartite
-from utils.data_helpers import unnormalize_scene, normalize_latents, unnormalize_latents, cache_batch, reorder_indices
+from utils.data_helpers import unnormalize_scene, normalize_latents, unnormalize_latents, convert_batch_to_scenarios, reorder_indices
+from utils.inpainting_helpers import normalize_and_crop_scene, sample_num_lanes_agents_inpainting, estimate_heading, sample_route, get_default_route_center_yaw
 from utils.torch_helpers import from_numpy
 from utils.viz import visualize_batch
 
@@ -184,8 +185,112 @@ class ScenarioDreamerLDM(pl.LightningModule):
         data['lane', 'to', 'lane'].type = lane_conn_samples
         
         return data, images_to_log_batch
-    
-    def _initialize_pyg_dset(self, mode, num_samples, conditioning_path=None):
+
+
+    def _build_ldm_dset_from_ae_dset_for_inpainting(self, ae_dset, batch_size, num_samples):
+        """ Build a pyg dataset for the LDM from a given autoencoder dataset for inpainting."""
+        dataloader = DataLoader(
+            ae_dset,
+            batch_size=batch_size,
+            shuffle=False,
+            drop_last=False
+        )
+        
+        data_list = []
+        inpainting_prob_matrix = torch.load(self.cfg.eval.inpainting_prob_matrix_path)
+        for batch_idx, data in enumerate(dataloader):
+            data = data.to(self.device)
+            agent_latents, lane_latents, lane_cond_dis_prob = self.autoencoder.model.forward_encoder(data)
+            
+            agent_latents, lane_latents = normalize_latents(
+                agent_latents, 
+                lane_latents,
+                self.cfg_dataset.agent_latents_mean,
+                self.cfg_dataset.agent_latents_std,
+                self.cfg_dataset.lane_latents_mean,
+                self.cfg_dataset.lane_latents_std
+            )
+            cond_lane_ids = data['lane'].ids
+            num_lanes_batch, num_agents_batch = sample_num_lanes_agents_inpainting(
+                lane_cond_dis_prob,
+                data.map_id,
+                data.num_lanes,
+                data.num_agents,
+                self.cfg_dataset.max_num_lanes,
+                inpainting_prob_matrix.to(self.device),
+            )
+
+            for i in range(data.batch_size):
+                if len(data_list) == num_samples:
+                    break 
+
+                d = ScenarioDreamerData()
+                num_lanes = num_lanes_batch[i].item()
+                num_agents = num_agents_batch[i].item()
+                d['num_lanes'] = num_lanes
+                d['num_agents'] = num_agents
+                d['map_id'] = data['map_id'][i].item()
+                d['lg_type'] = data['lg_type'][i].item()
+
+                cond_agent_mask = torch.zeros(num_agents).bool()
+                cond_agent_mask[:data['num_agents'][i]] = True
+                cond_lane_mask = torch.zeros(num_lanes).bool()
+                cond_lane_mask[:data['num_lanes'][i]] = True
+
+                d['agent'].mask = cond_agent_mask 
+                d['lane'].mask = cond_lane_mask
+
+                # these two are placeholders
+                d['lane'].x = torch.empty((num_lanes, self.cfg_model.lane_latent_dim))
+                d['agent'].x = torch.empty((num_agents, self.cfg_model.agent_latent_dim))
+                
+                agent_latents_i = agent_latents[data['agent'].batch == i]
+                agent_states_i = data['agent'].x[data['agent'].batch == i]
+                lane_latents_i = lane_latents[data['lane'].batch == i]
+                lane_states_i = data['lane'].x[data['lane'].batch == i]
+                cond_lane_ids_i = cond_lane_ids[data['lane'].batch == i]
+
+                # we use this function in a hacky way to reorder the latents and conditional lane indices
+                # we don't need the updated edge indices here as the lane-to-lane graph is fully connected
+                agent_latents_i, _, lane_latents_i, cond_lane_ids_i, _, _, _ = reorder_indices(
+                    agent_latents_i.cpu().numpy(), 
+                    agent_latents_i.cpu().numpy(), 
+                    lane_latents_i.cpu().numpy(), 
+                    cond_lane_ids_i.cpu().numpy(), 
+                    get_edge_index_complete_graph(len(lane_latents_i)).numpy(), 
+                    agent_states_i.cpu().numpy(), 
+                    lane_states_i.cpu().numpy(), 
+                    lg_type=0, # we don't care about partition masks here
+                    dataset=self.cfg.dataset_name)
+                agent_latents_i = from_numpy(agent_latents_i)
+                lane_latents_i = from_numpy(lane_latents_i)
+                cond_lane_ids_i = from_numpy(cond_lane_ids_i)
+                
+                # conditional latents/lane_ids for the indices corresponding to the lanes/agents after the partition are set to zero
+                agents_latents_i_padded = torch.zeros((num_agents, self.cfg_model.agent_latent_dim))
+                agents_latents_i_padded[:agent_latents_i.shape[0], :] = agent_latents_i
+                agent_latents_i = agents_latents_i_padded
+                lane_latents_i_padded = torch.zeros((num_lanes, self.cfg_model.lane_latent_dim))
+                lane_latents_i_padded[:lane_latents_i.shape[0], :] = lane_latents_i
+                lane_latents_i = lane_latents_i_padded
+                cond_lane_ids_i_padded = torch.zeros((num_lanes,))
+                cond_lane_ids_i_padded[:cond_lane_ids_i.shape[0]] = cond_lane_ids_i
+                cond_lane_ids_i = cond_lane_ids_i_padded
+
+                d['lane'].latents = lane_latents_i
+                d['agent'].latents = agent_latents_i
+                d['lane'].ids = cond_lane_ids_i
+
+                d['lane', 'to', 'lane'].edge_index = get_edge_index_complete_graph(num_lanes)
+                d['agent', 'to', 'agent'].edge_index = get_edge_index_complete_graph(num_agents)
+                d['lane', 'to', 'agent'].edge_index = get_edge_index_bipartite(num_lanes, num_agents)
+
+                data_list.append(d)
+        
+        return data_list
+
+
+    def _initialize_pyg_dset(self, mode, num_samples, batch_size, conditioning_path=None):
         """ Initialize a PyTorch Geometric dataset with the appropriate metadata for the given generation mode."""
         data_list = []
         map_id_counter = 0
@@ -198,6 +303,11 @@ class ScenarioDreamerLDM(pl.LightningModule):
             else:
                 conditioning_files = sorted(glob.glob(conditioning_path + "/*_0.pkl"))
             conditioning_files = conditioning_files[:num_samples] 
+        
+        elif mode == 'inpainting':
+            assert conditioning_path is not None, "conditioning_path must be provided for inpainting generation"
+            conditioning_files = sorted(glob.glob(conditioning_path + "/*_*.pkl"))
+            conditioning_files = conditioning_files[:num_samples]
         
         for i in range(num_samples):
             d = ScenarioDreamerData()
@@ -233,6 +343,32 @@ class ScenarioDreamerLDM(pl.LightningModule):
 
                 data_list.append(d)
 
+            elif mode == 'inpainting':
+                conditioning_file = conditioning_files[i]
+                with open(os.path.join(conditioning_path, conditioning_file), 'rb') as f:
+                    cond_d = pickle.load(f)
+                
+                if 'route' in cond_d:
+                    route = cond_d['route']
+                else:
+                    route, found_route = sample_route(cond_d, dataset=self.cfg.dataset_name)
+                    if found_route:
+                        center = route[-1]
+                        _, yaw = estimate_heading(route)
+                    else:
+                        # TODO: Might be better to actually define the route as a straight line
+                        center, yaw = get_default_route_center_yaw(dataset=self.cfg.dataset_name)
+                        # TODO: indicate that this scene is no longer valid
+                        
+                # normalize to endpoint of route
+                normalize_dict = {
+                    'center': center,
+                    'yaw': yaw
+                }
+
+                d = normalize_and_crop_scene(cond_d, d, normalize_dict, self.cfg_dataset, self.cfg.dataset_name)
+                data_list.append(d)
+
             elif mode == 'lane_conditioned':
                 # process conditioning data similar to ldm dataloader
                 conditioning_file = conditioning_files[i]
@@ -266,7 +402,7 @@ class ScenarioDreamerLDM(pl.LightningModule):
                     agent_states, 
                     road_points, 
                     scene_type,
-                    dataset='waymo')
+                    dataset=self.cfg.dataset_name)
                 edge_index_lane_to_lane = torch.from_numpy(edge_index_lane_to_lane)
                 
                 d['map_id'] = map_id
@@ -294,6 +430,11 @@ class ScenarioDreamerLDM(pl.LightningModule):
                 d['lane', 'to', 'agent'].edge_index = from_numpy(edge_index_lane_to_agent)
                 data_list.append(d)
             
+        # in inpainting mode, we still need to feed through the autoencoder to get latents
+        # and construct the LDM pyg dataset object
+        if mode == 'inpainting':
+            data_list = self._build_ldm_dset_from_ae_dset_for_inpainting(data_list, batch_size, num_samples)
+        
         return data_list
 
 
@@ -307,7 +448,8 @@ class ScenarioDreamerLDM(pl.LightningModule):
             conditioning_path=None,
             cache_dir=None,
             viz_dir=None,
-            save_wandb = False
+            save_wandb = False,
+            return_samples=False,
     ):
         """ Generate samples using the diffusion model."""
         if conditioning_path is not None:
@@ -324,7 +466,8 @@ class ScenarioDreamerLDM(pl.LightningModule):
                 dset = self._initialize_pyg_dset(
                     mode,
                     num_samples,
-                    conditioning_path
+                    batch_size,
+                    conditioning_path,
                 )
                 
                 dataloader = DataLoader(
@@ -333,7 +476,7 @@ class ScenarioDreamerLDM(pl.LightningModule):
                     shuffle=False,
                     drop_last=False
                 )
-                
+                scenarios = {}
                 for batch_idx, data in enumerate(tqdm(dataloader)):
                     # updates data object with generated samples 
                     data, images_to_log_batch = self.forward(
@@ -345,10 +488,10 @@ class ScenarioDreamerLDM(pl.LightningModule):
                         save_wandb=save_wandb)
                     if visualize and save_wandb:
                         images_to_log.update(images_to_log_batch)
-                    if cache_samples:
-                        cache_batch(data, batch_idx=batch_idx, cache_dir=cache_dir, cache_lane_types=self.cfg.dataset_name == 'nuplan')
+                    batch_of_scenarios = convert_batch_to_scenarios(data, batch_idx=batch_idx, cache_dir=cache_dir, cache_samples=cache_samples, cache_lane_types=self.cfg.dataset_name == 'nuplan')
+                    scenarios.update(batch_of_scenarios)
         
-        return images_to_log if visualize and save_wandb else None
+        return scenarios if return_samples else None
     
     
     def on_before_optimizer_step(self, optimizer):

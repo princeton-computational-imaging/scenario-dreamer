@@ -18,13 +18,21 @@ AFTER_PARTITION = 0
 BEFORE_PARTITION = 1
 
 # Waymo connection type
-LANE_CONNECTION_TYPES = {
+LANE_CONNECTION_TYPES_WAYMO = {
     "none": 0,
     "pred": 1,
     "succ": 2,
     "left": 3,
     "right": 4,
     "self": 5
+}
+
+# NuPlan connection type
+LANE_CONNECTION_TYPES_NUPLAN = {
+    "none": 0,
+    "pred": 1,
+    "succ": 2,
+    "self": 3,
 }
 
 # proportion of nocturne compatible scenes in the Waymo dataset

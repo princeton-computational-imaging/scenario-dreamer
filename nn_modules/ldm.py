@@ -154,6 +154,12 @@ class LDM(nn.Module):
             lane_mask = data['lane'].partition_mask == BEFORE_PARTITION
             x_lane[lane_mask] = data['lane'].latents[lane_mask].unsqueeze(1)
         
+        if mode == 'inpainting':
+            cond_lane_mask = data['lane'].mask
+            x_lane[cond_lane_mask] = data['lane'].latents[cond_lane_mask].unsqueeze(1)
+            cond_agent_mask = data['agent'].mask
+            x_agent[cond_agent_mask] = data['agent'].latents[cond_agent_mask].unsqueeze(1)
+        
         # useful for cool visuals :)
         if return_diffusion_chain: diffusion_chain = [(x_agent, x_lane)]
 
@@ -172,6 +178,12 @@ class LDM(nn.Module):
                 # clip outputs to avoid degenerate samples
                 x_lane = torch.clip(x_lane, -self.cfg_model.diffusion_clip, self.cfg_model.diffusion_clip)
 
+            if mode == 'inpainting':
+                cond_lane_mask = data['lane'].mask
+                x_lane[cond_lane_mask] = data['lane'].latents[cond_lane_mask].unsqueeze(1)
+                cond_agent_mask = data['agent'].mask
+                x_agent[cond_agent_mask] = data['agent'].latents[cond_agent_mask].unsqueeze(1)
+            
             if mode == 'train':
                 agent_mask = data['agent'].partition_mask == BEFORE_PARTITION
                 x_agent[agent_mask] = data['agent'].latents[agent_mask].unsqueeze(1)

@@ -461,8 +461,8 @@ def sample_latents(
     return agent_latents, lane_latents
 
 
-def cache_batch(data, batch_idx, cache_dir, cache_lane_types=False):
-    """ Cache a batch of generated samples."""
+def convert_batch_to_scenarios(data, batch_idx, cache_dir, cache_samples=False, cache_lane_types=False):
+    """ Converts batch output into individual scenarios. Optionally saves scenarios to disk."""
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir, exist_ok=True)
 
@@ -483,7 +483,7 @@ def cache_batch(data, batch_idx, cache_dir, cache_lane_types=False):
     lane_batch = lane_batch.cpu().numpy()
     lane_conn_batch = lane_conn_batch.cpu().numpy()
 
-    num_scenes = 0
+    batch_of_scenarios = {}
     for i in range(batch_size):
         map_id_i = map_ids[i]  
         scene_i_agents = x_agent_states[agent_batch == i]
@@ -508,8 +508,13 @@ def cache_batch(data, batch_idx, cache_dir, cache_lane_types=False):
         if cache_lane_types:
             data['lane_types'] = scene_i_lane_types
 
-        filename = f"{num_scenes}_{batch_idx}.pkl"
-        with open(os.path.join(cache_dir, filename), 'wb') as f:
-            pickle.dump(data, f)
+        scenario_id = f"{i}_{batch_idx}"
+        filename = f"{scenario_id}.pkl"
 
-        num_scenes += 1
+        batch_of_scenarios[scenario_id] = data
+        
+        if cache_samples:
+            with open(os.path.join(cache_dir, filename), 'wb') as f:
+                pickle.dump(data, f)
+
+    return batch_of_scenarios

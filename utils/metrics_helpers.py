@@ -300,7 +300,7 @@ def _get_sledge_lane_graph_nuplan(data):
     return G, vector_states
 
 
-def _get_lane_graph_nuplan(data):
+def get_lane_graph_nuplan(data):
     """ Processes a scenario dreamer generated nuPlan lane graph to extract the lane connectivity and centerlines
     for metrics computation."""
     num_lanes = data['num_lanes']
@@ -347,7 +347,7 @@ def _get_lane_graph_nuplan(data):
     return G, centerlines
 
 
-def _get_lane_graph_waymo(data):
+def get_lane_graph_waymo(data):
     """ Processes a scenario dreamer or GT Waymo lane graph to 
     extract the lane connectivity and centerlines for metrics computation."""
     num_lanes = data['num_lanes']
@@ -382,9 +382,9 @@ def convert_data_to_unified_format(data, dataset_name):
     assert data['lg_type'] == NON_PARTITIONED
     
     if dataset_name == 'waymo' or dataset_name == 'waymo_gt':
-        G_succ, centerlines = _get_lane_graph_waymo(data)
+        G_succ, centerlines = get_lane_graph_waymo(data)
     elif dataset_name == 'nuplan':
-        G_succ, centerlines = _get_lane_graph_nuplan(data)
+        G_succ, centerlines = get_lane_graph_nuplan(data)
     elif dataset_name == 'nuplan_gt':
         # We follow sledge preprocessing scheme for nuplan GT lane graphs (for fairest comparison with SLEDGE)
         G_succ, centerlines = _get_sledge_lane_graph_nuplan(data)

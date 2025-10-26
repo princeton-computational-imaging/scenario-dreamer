@@ -5,7 +5,7 @@ import matplotlib.transforms as transforms
 import os
 from utils.geometry import *
 import math
-from cfgs.config import LANE_CONNECTION_TYPES 
+from cfgs.config import LANE_CONNECTION_TYPES_WAYMO, LANE_CONNECTION_TYPES_NUPLAN
 import wandb
 
 def plot_scene(
@@ -246,6 +246,11 @@ def visualize_batch(num_samples,
                     visualize_lane_graph=False):
     """ Visualize samples from the batch."""
 
+    if lane_conn_samples.shape[-1] == 4:
+        LANE_CONNECTION_TYPES = LANE_CONNECTION_TYPES_NUPLAN
+    else:
+        LANE_CONNECTION_TYPES = LANE_CONNECTION_TYPES_WAYMO
+
     agent_samples = agent_samples.detach().cpu().numpy()
     lane_samples = lane_samples.detach().cpu().numpy()
     agent_types = agent_types.detach().cpu().numpy()
@@ -289,11 +294,12 @@ def visualize_batch(num_samples,
             scene_i_lane_conns = lane_conn_samples[lane_conn_batch == i]
             shift = np.where(lane_batch == i)[0].min()
             edge_index_i_l2l = edge_index_l2l[:, lane_conn_batch == i].cpu().numpy() - shift
-            edge_type_list = [LANE_CONNECTION_TYPES['pred'], LANE_CONNECTION_TYPES['succ'],
-                                LANE_CONNECTION_TYPES['left'], LANE_CONNECTION_TYPES['right']]
             # {"none": 0, "pred": 1, "succ": 2, "self": 3} (no left/right connections)
             if lane_conn_samples.shape[-1] == 4:
                 edge_type_list = [LANE_CONNECTION_TYPES['pred'], LANE_CONNECTION_TYPES['succ']]
+            else:
+                edge_type_list = [LANE_CONNECTION_TYPES['pred'], LANE_CONNECTION_TYPES['succ'],
+                                LANE_CONNECTION_TYPES['left'], LANE_CONNECTION_TYPES['right']]
 
             for typ in edge_type_list:
                 fig = plot_lane_graph(
