@@ -15,12 +15,38 @@ def plot_scene(
         lane_types, 
         name, 
         save_dir, 
-        return_fig=False):
+        return_fig=False,
+        tile_occupancy=None,
+        adaptive_limits=False,
+        route=None):
     """Plots a scene with lanes and agents."""
 
     # Create a figure and axes
     fig, ax = plt.subplots()
-    
+
+    if adaptive_limits:
+        x_min, x_max, y_min, y_max = np.inf, -np.inf, np.inf, -np.inf
+        for tile_corners in tile_occupancy:
+            x_min = min(x_min, tile_corners[:, 0].min())
+            x_max = max(x_max, tile_corners[:, 0].max())
+            y_min = min(y_min, tile_corners[:, 1].min())
+            y_max = max(y_max, tile_corners[:, 1].max())
+    else:
+        x_max = 32 
+        x_min = -32
+        y_max = 32 
+        y_min = -32
+
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+    scale_factor = max(x_range, y_range) / 64  # Scale based on 64m x 64m reference
+    base_linewidth = 1.5 / scale_factor
+    road_width = 20 / scale_factor
+    scatter_size = 8 / (scale_factor ** 2)
+    bbox_linewidth = 0.35 / scale_factor
+    heading_linewidth = 0.3 / scale_factor
+    route_linewidth = 1.5 / scale_factor
+
     ct = 0
     for i in range(len(road_points)):
         if lane_types is None: # Centerlines
@@ -41,7 +67,7 @@ def plot_scene(
             zorder = 3
         
         lane = road_points[i, :, :2]
-        ax.plot(lane[:, 0], lane[:, 1], color=color, linewidth=1.5, linestyle=linestyle, zorder=zorder)
+        ax.plot(lane[:, 0], lane[:, 1], color=color, linewidth=base_linewidth, linestyle=linestyle, zorder=zorder)
         ct += 1
         
         # Road width
@@ -52,25 +78,24 @@ def plot_scene(
             draw_road_width = True
         
         if draw_road_width:
-            ax.plot(lane[:, 0], lane[:, 1], color="lightgrey", linewidth=20, linestyle="solid", zorder=zorder-1)
+            ax.plot(lane[:, 0], lane[:, 1], color="lightgrey", linewidth=road_width, linestyle="solid", zorder=zorder-1)
 
         # Lane end points
-        ax.scatter(lane[0, 0], lane[0, 1], color=color, s=8, zorder=zorder+1)
-        ax.scatter(lane[-1, 0], lane[-1, 1], color=color, s=8, zorder=zorder+1)
+        ax.scatter(lane[0, 0], lane[0, 1], color=color, s=scatter_size, zorder=zorder+1)
+        ax.scatter(lane[-1, 0], lane[-1, 1], color=color, s=scatter_size, zorder=zorder+1)
 
         # Lane annotations (for debugging)
         # label_idx = len(lane) // 2
         # ax.annotate(i, (lane[label_idx, 0], lane[label_idx, 1]), zorder=5, fontsize=5)
 
-    x_max = 32 
-    x_min = -32
-    y_max = 32 
-    y_min = -32
-
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
     ax.set_aspect('equal', adjustable='box')
     ax.axis('off')
+
+    # Plot route
+    if route is not None:
+        ax.plot(route[:, 0], route[:, 1], color='red', linestyle='solid', zorder=5, linewidth=route_linewidth)
 
     alpha = 1.0
     edgecolor = 'black'
@@ -89,12 +114,11 @@ def plot_scene(
         width = agent_states[a, 6]
         bbox_x_min = agent_states[a, 0] - width / 2
         bbox_y_min = agent_states[a, 1] - length / 2
-        lw = (0.35) / ((x_max - x_min) / 140)
         rectangle = mpatches.FancyBboxPatch(
             (bbox_x_min, bbox_y_min),
             width, length,
             ec=edgecolor, fc=color,
-            linewidth=lw, alpha=alpha,
+            linewidth=bbox_linewidth, alpha=alpha,
             boxstyle=mpatches.BoxStyle("Round", pad=0.3),
             zorder=4
         )
@@ -128,7 +152,7 @@ def plot_scene(
                 [vehicle_center[1], line_end_y],
                 color='black',
                 alpha=0.5,
-                linewidth=0.3 / ((x_max - x_min) / 140),
+                linewidth=heading_linewidth,
                 zorder=5
             )
 

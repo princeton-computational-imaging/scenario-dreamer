@@ -12,6 +12,31 @@ from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.strategies import DDPStrategy
 from cfgs.config import CONFIG_PATH
 from utils.train_helpers import set_latent_stats
+import utils.sim_env_helpers as _sim_env_helpers
+
+
+def generate_simulation_environments(cfg, cfg_ae, save_dir=None):
+    """ Generate simulation environments using the Scenario Dreamer Latent Diffusion Model.
+    
+    This involves 1 step of initial scene generation followed by multiple steps of
+    inpainting to extend the scenario until the desired route length is reached.
+    Additional rule-based heuristics are applied to ensure scenario validity.
+    """
+    cfg = set_latent_stats(cfg)
+
+    # load last ckpt for inference
+    files_in_save_dir = os.listdir(save_dir)
+    ckpt_path = None
+    for file in files_in_save_dir:
+        if file.endswith('.ckpt') and 'last' in file:
+            ckpt_path = os.path.join(save_dir, file)
+            print("Loading checkpoint: ", ckpt_path)
+            break
+    
+    assert ckpt_path is not None, "No checkpoint found in the save directory."
+
+    model = ScenarioDreamerLDM.load_from_checkpoint(ckpt_path, cfg=cfg, cfg_ae=cfg_ae).to('cuda')
+    _sim_env_helpers.generate_simulation_environments(model, cfg, save_dir)
 
 
 def eval_ldm(cfg, cfg_ae, save_dir=None):
@@ -110,7 +135,10 @@ def main(cfg):
     if model_name == 'autoencoder':
         eval_autoencoder(cfg, save_dir)
     elif model_name == 'ldm':
-        eval_ldm(cfg, cfg_ae, save_dir) 
+        if cfg.eval.mode == 'simulation_environments':
+            generate_simulation_environments(cfg, cfg_ae, save_dir)
+        else:
+            eval_ldm(cfg, cfg_ae, save_dir) 
 
 
 if __name__ == '__main__':

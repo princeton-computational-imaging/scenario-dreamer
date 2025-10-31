@@ -3,7 +3,7 @@ defaults:
 
 run_name: scenario_dreamer_ldm_base_nuplan # default run name for evaluation
 
-mode: initial_scene # or lane_conditioned or inpainting or metrics
+mode: initial_scene # or lane_conditioned or inpainting or metrics or simulation_environments
 num_samples: 100 # number of samples to generate during evaluation
 init_prob_matrix_path: ${project_root}/metadata/initial_prob_matrix_nuplan.pt # path to initial scene num lanes and agents probability matrix
 inpainting_prob_matrix_path: ${project_root}/metadata/inpainting_prob_matrix_nuplan.pt # path to inpainting num lanes and agents probability matrix
@@ -12,6 +12,10 @@ visualize: False # visualize samples during evaluation?
 viz_dir: ${project_root}/viz_gen_samples_${ldm.eval.run_name} # directory to save visualizations of generated samples
 cache_samples: False # cache samples to disk?
 conditioning_path: null # optional path to conditioning data for lane-conditioned or inpainting evaluation
+
+sim_envs:
+  num_inpainting_candidates: 16 # number of inpainting candidates to generate per partial scene when generating simulation environments
+  route_length: 500 # length of routes (in meters) to generate simulation environments for
 
 metrics:
   samples_path: ${dataset_root}/checkpoints/${ldm.eval.run_name}/initial_scene_samples # path to load generated samples

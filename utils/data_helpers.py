@@ -461,14 +461,18 @@ def sample_latents(
     return agent_latents, lane_latents
 
 
-def convert_batch_to_scenarios(data, batch_idx, cache_dir, cache_samples=False, cache_lane_types=False):
+def convert_batch_to_scenarios(data, batch_size, batch_idx, cache_dir, conditioning_filenames=None, cache_samples=False, cache_lane_types=False, mode='initial_scene'):
     """ Converts batch output into individual scenarios. Optionally saves scenarios to disk."""
-    if not os.path.exists(cache_dir):
+    if cache_samples and not os.path.exists(cache_dir):
         os.makedirs(cache_dir, exist_ok=True)
 
-    batch_size = data.batch_size
+    num_samples_in_batch = data.batch_size
     agent_batch, lane_batch, lane_conn_batch = get_batches(data)
     x_agent, x_agent_states, x_agent_types, x_lane, x_lane_states, x_lane_types, x_lane_conn = get_features(data)
+    if mode == 'inpainting':
+        x_lane_mask = data['lane'].mask.float() # mask indicating lanes before partition
+        x_agent_mask = data['agent'].mask.float() # mask indicating agents before partition
+        x_lane_ids = data['lane'].ids # ids of the lanes before partition
     
     # move to cpu
     lg_type = data['lg_type'].cpu().numpy()
@@ -482,9 +486,13 @@ def convert_batch_to_scenarios(data, batch_idx, cache_dir, cache_samples=False, 
     agent_batch = agent_batch.cpu().numpy()
     lane_batch = lane_batch.cpu().numpy()
     lane_conn_batch = lane_conn_batch.cpu().numpy()
+    if mode == 'inpainting':
+        x_lane_mask = x_lane_mask.cpu().numpy()
+        x_agent_mask = x_agent_mask.cpu().numpy()
+        x_lane_ids = x_lane_ids.cpu().numpy()
 
     batch_of_scenarios = {}
-    for i in range(batch_size):
+    for i in range(num_samples_in_batch):
         map_id_i = map_ids[i]  
         scene_i_agents = x_agent_states[agent_batch == i]
         scene_i_lanes = x_lane_states[lane_batch == i]
@@ -493,6 +501,10 @@ def convert_batch_to_scenarios(data, batch_idx, cache_dir, cache_samples=False, 
             scene_i_lane_types = x_lane_types[lane_batch == i]
         scene_i_lane_conns = x_lane_conn[lane_conn_batch == i]
         lg_type_i = lg_type[i]
+        if mode == 'inpainting':
+            scene_i_lane_mask = x_lane_mask[lane_batch == i]
+            scene_i_agent_mask = x_agent_mask[agent_batch == i]
+            scene_i_lane_ids = x_lane_ids[lane_batch == i]
         
         data = {
             'num_agents': len(scene_i_agents),
@@ -507,8 +519,15 @@ def convert_batch_to_scenarios(data, batch_idx, cache_dir, cache_samples=False, 
 
         if cache_lane_types:
             data['lane_types'] = scene_i_lane_types
+        if mode == 'inpainting':
+            data['lane_mask'] = scene_i_lane_mask
+            data['agent_mask'] = scene_i_agent_mask
+            data['lane_ids'] = scene_i_lane_ids
 
-        scenario_id = f"{i}_{batch_idx}"
+        if mode != 'inpainting':
+            scenario_id = f"{i}_{batch_idx}"
+        else:
+            scenario_id = conditioning_filenames[int(batch_idx * batch_size + i)]
         filename = f"{scenario_id}.pkl"
 
         batch_of_scenarios[scenario_id] = data

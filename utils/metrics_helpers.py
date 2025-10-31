@@ -300,9 +300,9 @@ def _get_sledge_lane_graph_nuplan(data):
     return G, vector_states
 
 
-def get_lane_graph_nuplan(data):
-    """ Processes a scenario dreamer generated nuPlan lane graph to extract the lane connectivity and centerlines
-    for metrics computation."""
+def get_networkx_lane_graph_without_traffic_lights(data):
+    """ Processes a scenario dreamer lane graph to extract the lane connectivity and centerlines
+    for non-traffic light lane segments."""
     num_lanes = data['num_lanes']
     l2l_edge_index = get_edge_index_complete_graph(num_lanes)
     lane_conn = data['road_connection_types']
@@ -347,9 +347,9 @@ def get_lane_graph_nuplan(data):
     return G, centerlines
 
 
-def get_lane_graph_waymo(data):
-    """ Processes a scenario dreamer or GT Waymo lane graph to 
-    extract the lane connectivity and centerlines for metrics computation."""
+def get_networkx_lane_graph(data):
+    """ Processes a scenario dreamer or GT lane graph to 
+    extract the lane connectivity and centerlines."""
     num_lanes = data['num_lanes']
     l2l_edge_index = get_edge_index_complete_graph(num_lanes)
     lane_conn = data['road_connection_types']
@@ -382,9 +382,9 @@ def convert_data_to_unified_format(data, dataset_name):
     assert data['lg_type'] == NON_PARTITIONED
     
     if dataset_name == 'waymo' or dataset_name == 'waymo_gt':
-        G_succ, centerlines = get_lane_graph_waymo(data)
+        G_succ, centerlines = get_networkx_lane_graph(data)
     elif dataset_name == 'nuplan':
-        G_succ, centerlines = get_lane_graph_nuplan(data)
+        G_succ, centerlines = get_networkx_lane_graph_without_traffic_lights(data)
     elif dataset_name == 'nuplan_gt':
         # We follow sledge preprocessing scheme for nuplan GT lane graphs (for fairest comparison with SLEDGE)
         G_succ, centerlines = _get_sledge_lane_graph_nuplan(data)

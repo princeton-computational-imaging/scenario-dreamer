@@ -37,6 +37,7 @@ LANE_CONNECTION_TYPES_NUPLAN = {
 
 # proportion of nocturne compatible scenes in the Waymo dataset
 PROPORTION_NOCTURNE_COMPATIBLE = 0.38
+NOCTURNE_COMPATIBLE = 1
 
 # object type
 NUPLAN_VEHICLE = 0

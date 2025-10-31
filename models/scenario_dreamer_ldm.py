@@ -8,10 +8,11 @@ from models.scenario_dreamer_autoencoder import ScenarioDreamerAutoEncoder
 from utils.data_container import ScenarioDreamerData
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Batch
-from cfgs.config import PROPORTION_NOCTURNE_COMPATIBLE, NON_PARTITIONED
+from cfgs.config import PROPORTION_NOCTURNE_COMPATIBLE, NON_PARTITIONED, NOCTURNE_COMPATIBLE
 from utils.pyg_helpers import get_edge_index_complete_graph, get_edge_index_bipartite
 from utils.data_helpers import unnormalize_scene, normalize_latents, unnormalize_latents, convert_batch_to_scenarios, reorder_indices
-from utils.inpainting_helpers import normalize_and_crop_scene, sample_num_lanes_agents_inpainting, estimate_heading, sample_route, get_default_route_center_yaw
+from utils.inpainting_helpers import normalize_and_crop_scene, sample_num_lanes_agents_inpainting
+from utils.sim_env_helpers import estimate_heading, sample_route, get_default_route_center_yaw
 from utils.torch_helpers import from_numpy
 from utils.viz import visualize_batch
 
@@ -153,7 +154,6 @@ class ScenarioDreamerLDM(pl.LightningModule):
             min_lane_y=self.cfg_dataset.min_lane_y,
             max_lane_x=self.cfg_dataset.max_lane_x,
             max_lane_y=self.cfg_dataset.max_lane_y)
-
         
         if visualize:
             print(f"Visualizing batch {batch_idx}...")
@@ -290,11 +290,12 @@ class ScenarioDreamerLDM(pl.LightningModule):
         return data_list
 
 
-    def _initialize_pyg_dset(self, mode, num_samples, batch_size, conditioning_path=None):
+    def _initialize_pyg_dset(self, mode, num_samples, batch_size, conditioning_path=None, nocturne_compatible_only=False):
         """ Initialize a PyTorch Geometric dataset with the appropriate metadata for the given generation mode."""
         data_list = []
         map_id_counter = 0
         
+        conditioning_files = None
         if mode == 'lane_conditioned':
             assert conditioning_path is not None, "conditioning_path must be provided for lane conditioned agent generation"
             # only load non-partitioned scenes
@@ -303,7 +304,6 @@ class ScenarioDreamerLDM(pl.LightningModule):
             else:
                 conditioning_files = sorted(glob.glob(conditioning_path + "/*_0.pkl"))
             conditioning_files = conditioning_files[:num_samples] 
-        
         elif mode == 'inpainting':
             assert conditioning_path is not None, "conditioning_path must be provided for inpainting generation"
             conditioning_files = sorted(glob.glob(conditioning_path + "/*_*.pkl"))
@@ -314,8 +314,11 @@ class ScenarioDreamerLDM(pl.LightningModule):
 
             if mode == 'initial_scene':
                 if self.cfg.dataset_name == 'waymo':
-                    map_id = torch.multinomial(
-                        torch.tensor([1-PROPORTION_NOCTURNE_COMPATIBLE, PROPORTION_NOCTURNE_COMPATIBLE]), 1)
+                    if nocturne_compatible_only:
+                        map_id = torch.tensor(NOCTURNE_COMPATIBLE)
+                    else:
+                        map_id = torch.multinomial(
+                            torch.tensor([1-PROPORTION_NOCTURNE_COMPATIBLE, PROPORTION_NOCTURNE_COMPATIBLE]), 1)
                 else:
                     map_id = map_id_counter 
                     map_id_counter += 1
@@ -350,15 +353,15 @@ class ScenarioDreamerLDM(pl.LightningModule):
                 
                 if 'route' in cond_d:
                     route = cond_d['route']
+                    center = route[-1]
+                    _, yaw = estimate_heading(route)
                 else:
                     route, found_route = sample_route(cond_d, dataset=self.cfg.dataset_name)
                     if found_route:
                         center = route[-1]
                         _, yaw = estimate_heading(route)
                     else:
-                        # TODO: Might be better to actually define the route as a straight line
                         center, yaw = get_default_route_center_yaw(dataset=self.cfg.dataset_name)
-                        # TODO: indicate that this scene is no longer valid
                         
                 # normalize to endpoint of route
                 normalize_dict = {
@@ -435,7 +438,10 @@ class ScenarioDreamerLDM(pl.LightningModule):
         if mode == 'inpainting':
             data_list = self._build_ldm_dset_from_ae_dset_for_inpainting(data_list, batch_size, num_samples)
         
-        return data_list
+        conditioning_filenames = ([os.path.splitext(os.path.basename(f))[0] for f in conditioning_files] 
+                                  if conditioning_files is not None 
+                                  else None)
+        return data_list, conditioning_filenames
 
 
     def generate(
@@ -450,6 +456,7 @@ class ScenarioDreamerLDM(pl.LightningModule):
             viz_dir=None,
             save_wandb = False,
             return_samples=False,
+            nocturne_compatible_only=False,
     ):
         """ Generate samples using the diffusion model."""
         if conditioning_path is not None:
@@ -463,11 +470,12 @@ class ScenarioDreamerLDM(pl.LightningModule):
                 images_to_log = {}
                 
                 # initialize pyg dataset with appropriate metadata (edge indices, etc.) 
-                dset = self._initialize_pyg_dset(
+                dset, conditioning_filenames = self._initialize_pyg_dset(
                     mode,
                     num_samples,
                     batch_size,
                     conditioning_path,
+                    nocturne_compatible_only
                 )
                 
                 dataloader = DataLoader(
@@ -488,7 +496,16 @@ class ScenarioDreamerLDM(pl.LightningModule):
                         save_wandb=save_wandb)
                     if visualize and save_wandb:
                         images_to_log.update(images_to_log_batch)
-                    batch_of_scenarios = convert_batch_to_scenarios(data, batch_idx=batch_idx, cache_dir=cache_dir, cache_samples=cache_samples, cache_lane_types=self.cfg.dataset_name == 'nuplan')
+                    batch_of_scenarios = convert_batch_to_scenarios(
+                        data,
+                        batch_size=batch_size,
+                        batch_idx=batch_idx, 
+                        cache_dir=cache_dir, 
+                        conditioning_filenames=conditioning_filenames,
+                        cache_samples=cache_samples, 
+                        cache_lane_types=self.cfg.dataset_name == 'nuplan', 
+                        mode=mode,
+                    )
                     scenarios.update(batch_of_scenarios)
         
         return scenarios if return_samples else None

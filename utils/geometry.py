@@ -44,3 +44,32 @@ def radians_to_degrees(radians):
     """ Converts radians to degrees."""
     degrees = radians * (180 / 3.141592653589793)
     return degrees
+
+def normalize_lanes_and_agents(agents, lanes, normalize_dict, dataset):
+    """ Normalize lanes and agents to coordinate frame defined by the provided normalization dictionary."""
+    offset = np.pi / 2 if dataset == 'waymo' else 0
+    angle_of_rotation = offset + np.sign(-normalize_dict['yaw']) * np.abs(normalize_dict['yaw'])
+    translation = normalize_dict['center'][None, None, :]
+
+    agents_normalized = np.zeros_like(agents)
+    agents_normalized[:, :, :2] = apply_se2_transform(
+        coordinates=agents[:, :, :2],
+        translation=translation,
+        yaw=angle_of_rotation)
+    
+    cos_theta = agents[:, :, 3]
+    sin_theta = agents[:, :, 4]
+    theta = np.arctan2(sin_theta, cos_theta)
+    theta_normalized = rotate_and_normalize_angles(theta, angle_of_rotation.reshape(1, 1))
+
+    agents_normalized[:, :, 2] = agents[:, :, 2]  # keep speed the same
+    agents_normalized[:, :, 3] = np.cos(theta_normalized)
+    agents_normalized[:, :, 4] = np.sin(theta_normalized)
+    agents_normalized[:, :, 5:] = agents[:, :, 5:]  # remaining attributes are se2 invariant
+
+    lanes_normalized = apply_se2_transform(
+        coordinates=lanes,
+        translation=translation,
+        yaw=angle_of_rotation)
+    
+    return np.squeeze(agents_normalized, axis=1), lanes_normalized
