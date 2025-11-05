@@ -461,7 +461,7 @@ def generate_simulation_environments(model, cfg, save_dir):
                                     np.argmax(data['agent_types'], axis=1), 
                                     np.argmax(data['lane_types'], axis=1) if cfg.dataset_name == 'nuplan' else None,
                                     f"{it}_{sample}_{'PARTIAL' if not data['route_completed'] else 'COMPLETE'}.png", 
-                                    f"viz_sim_envs_{cfg.dataset_name}", 
+                                    os.path.join(save_dir, f"viz_sim_envs_{cfg.dataset_name}"), 
                                     return_fig=False,
                                     tile_occupancy=None,
                                     adaptive_limits=False,
