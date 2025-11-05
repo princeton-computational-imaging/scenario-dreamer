@@ -343,3 +343,16 @@ def visualize_batch(num_samples,
         return images_to_log
     else:
         return None
+
+
+def plot_k_disks_vocabulary(V, png_path, dpi=1000):
+    plt.figure(figsize=(18, 3))
+    plt.ylim(-0.25, 0.25)
+    for state in V:
+        plt.scatter(state[0], state[1], s=1, color='blue')
+        arrow_length = 0.08  # Define length of arrows
+        dx = arrow_length * np.cos(state[2])  # Change in x
+        dy = arrow_length * np.sin(state[2])  # Change in y
+        plt.plot([state[0], state[0] + dx], [state[1], state[1] + dy], linewidth=0.5, color="black")
+    plt.savefig(png_path, dpi=dpi)
+    plt.clf()

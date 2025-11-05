@@ -8,6 +8,7 @@ import pickle
 from datasets.waymo.dataset_ldm_waymo import WaymoDatasetLDM
 from datasets.nuplan.dataset_ldm_nuplan import NuplanDatasetLDM
 from utils.data_helpers import sample_latents
+from torch.nn import Transformer
 
 def create_lambda_lr_cosine(cfg):
     """cosine learning rate schedule with warmup"""
@@ -185,3 +186,36 @@ def set_latent_stats(cfg):
     print(f"Lane Latents Mean: {cfg.dataset.lane_latents_mean:.4f}, Std: {cfg.dataset.lane_latents_std:.4f}")
 
     return cfg
+
+
+def get_causal_mask(cfg, num_timesteps, num_types):
+    """ Get the causal mask for the transformer decoder in CtRL-Sim model."""
+    num_agents = cfg.dataset.max_num_agents 
+    num_steps = num_timesteps
+    state_index = 0
+    num_tokens = num_agents * num_steps * num_types
+    
+    mask = Transformer.generate_square_subsequent_mask(num_tokens)
+    multi_agent_mask = torch.Tensor(mask.shape).fill_(0)
+    offset = 0
+    index = 0
+    for index in range(len(multi_agent_mask)):
+        mask_out = torch.Tensor(num_agents * num_types).fill_(float('-inf'))
+        agent_id = (index // num_types) % num_agents 
+        mask_out[agent_id*num_types:(agent_id+1)*(num_types)] = 0
+        multi_agent_mask[index, offset:offset+(num_agents * num_types)] = mask_out 
+        
+        if (index + 1) % (num_agents * num_types) == 0:
+            offset += num_agents * num_types
+
+    mask = torch.minimum(mask, multi_agent_mask)
+
+    # current state of all agents is visible
+    for index_i in range(len(mask)):
+        timestep_idx = index_i // (num_types * num_agents)
+        for index_j in range(len(mask)):
+            if (index_j < (timestep_idx + 1) * (num_agents*num_types) 
+                and index_j % num_types == state_index):
+                mask[index_i, index_j] = 0.
+
+    return mask

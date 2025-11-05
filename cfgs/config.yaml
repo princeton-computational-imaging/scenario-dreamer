@@ -20,6 +20,7 @@ generate_waymo_dataset:
   chunk_size: 50 # size of each chunk to process in parallel processes, if chunk_idx >= 0
 
 preprocess_waymo:
+  stage: scenario_dreamer # or ctrl_sim
   num_workers: 10 # number of workers to use for preprocessing the dataset
   mode: train # or val or test
   chunk_idx: -1 # If chunk_idx >= 0, indexes into the chunk_idx'th chunk of size chunk_size. If chunk_idx=-1, process all chunks in parallel processes
@@ -31,7 +32,7 @@ preprocess_nuplan:
   chunk_idx: -1 # If chunk_idx >= 0, indexes into the chunk_idx'th chunk of size chunk_size. If chunk_idx=-1, process all chunks in parallel processes
   chunk_size: 50000 # size of each chunk to process in parallel processes, if chunk_idx >= 0
 
-model_name: autoencoder # or ldm
+model_name: autoencoder # or ldm or ctrl_sim
 
 # hacky way to not have to manually change the dataset name in all config groups from command line
 # only dataset_name has to be configured from command line 
@@ -49,3 +50,7 @@ defaults:
   - eval@ldm.eval:       ${dataset_name}_ldm
   - model@ldm.model:      ${dataset_name}_ldm
   - datamodule@ldm.datamodule: ${dataset_name}_ldm
+  - dataset@ctrl_sim.dataset:   ${dataset_name}_ctrl_sim
+  - train@ctrl_sim.train:      ${dataset_name}_ctrl_sim
+  - model@ctrl_sim.model:      ${dataset_name}_ctrl_sim
+  - datamodule@ctrl_sim.datamodule: ${dataset_name}_ctrl_sim

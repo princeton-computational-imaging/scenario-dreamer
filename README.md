@@ -34,9 +34,10 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 - [x] [07/21/2025] Support lane-conditioned object generation
 - [x] [10/25/2025] Support inpainting generation mode
 - [x] [10/31/2025] Support generation of large simulation environments
-- [ ] [ETA: 11/04/2025] Train CtRL-Sim behaviour model on Waymo
-- [ ] [ETA: 11/04/2025] Evaluate planners in Scenario Dreamer environments
-- [ ] [ETA: 11/04/2025] Train Scenario-Dreamer compatible agents in GPUDrive
+- [x] [11/05/2025] CtRL-Sim Dataset Preprocessing
+- [x] [11/05/2025] Train CtRL-Sim behaviour model on Waymo
+- [ ] [ETA: 11/07/2025] Evaluate planners in Scenario Dreamer environments
+- [ ] [ETA: 11/07/2025] Train Scenario-Dreamer compatible agents in GPUDrive
 
 ## Table of Contents
 1. [Setup](#setup)
@@ -82,8 +83,9 @@ wandb login
 
 > **Quick Option:**  
 > If you'd prefer to skip data extraction and preprocessing, you can directly download the prepared files.
-> Place this tar file in your scratch directory and extract: 
+> Place the following tar files in your scratch directory and extract:
 > - `scenario_dreamer_ae_preprocess_waymo.tar` (preprocessed dataset for Scenario Dreamer autoencoder training on Waymo)  
+> - `scenario_dreamer_ctrl_sim_preprocess.tar.gz` (preprocessed dataset for CtRL-Sim training on Waymo)
 > [Download from Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing)  
 
 Download the Waymo Open Motion Dataset (v1.1.0) into your scratch directory with the following directory structure:
@@ -108,6 +110,7 @@ Then, we preprocess the waymo dataset to prepare for Scenario Dreamer model trai
 ```
 bash scripts/extract_waymo_data.sh # extract relevant data from tfrecords and create train/val/test splits
 bash scripts/preprocess_waymo_dataset.sh # preprocess data to facilitate efficient model training
+bash scripts/preprocess_ctrl_sim_waymo_dataset.sh # preprocess data to facilitate efficient ctrl_sim model training
 ```
 
 ## NuPlan Dataset Preparation <a name="nuplan-dataset-preparation"></a>
@@ -312,6 +315,38 @@ python train.py \
 - Training metrics and visualizations are logged to Weights & Biases (W&B).
 - After each epoch a single checkpoint (overwritten to `last.ckpt`) is saved to `$SCRATCH_ROOT/checkpoints/[your_ldm_run_name]`.
 - To resume training from an existing checkpoint, run the same training command and the code will automatically resume training from the `last.ckpt` stored in the run's `$SCRATCH_ROOT/checkpoints/[your_ldm_run_name]` directory.
+
+</details>
+
+### 📈 CtRL-Sim Training
+
+<details> <summary><strong>1. Prerequisites</strong></summary>
+
+- Verify that you have the preprocessed dataset (`scenario_dreamer_ctrl_sim_preprocess`) and that it resides in your scratch directory.
+
+</details>
+
+<details> <summary><strong>2. Launch CtRL-Sim Training</strong></summary>
+
+````bash
+python train.py \
+  dataset_name=waymo \
+  model_name=ctrl_sim \
+  ctrl_sim.train.run_name=[your_ctrl_sim_run_name] \
+  ctrl_sim.train.track=True
+````
+
+By default `ctrl_sim.train.run_name` is set to `ctrl_sim_waymo`.
+
+</details>
+
+<details> <summary><strong>3. What to Expect</strong></summary>
+
+- By default, trains for 1M steps. However, we used 500k-step checkpoint in paper due to time limitations.
+- Trains on 4 GPUs (≈ 100 h with 4 A100 GPUs to 1M steps). 
+- Training metrics and visualizations are logged to Weights & Biases (W&B).
+- After each epoch, a single checkpoint (overwritten to `last.ckpt`) is saved to `$SCRATCH_ROOT/checkpoints/[your_ctrl_sim_run_name]`. The 15 checkpoints
+with lowest val loss are additionally saved to `$SCRATCH_ROOT/checkpoints/[your_ctrl_sim_run_name]`.
 
 </details>
 

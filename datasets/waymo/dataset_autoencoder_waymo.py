@@ -16,9 +16,16 @@ np.set_printoptions(suppress=True, threshold=sys.maxsize)
 from cfgs.config import CONFIG_PATH, PARTITIONED
 
 from utils.data_container import ScenarioDreamerData
-from utils.lane_graph_helpers import find_lane_groups, find_lane_group_id, resample_polyline
+from utils.lane_graph_helpers import resample_polyline, get_compact_lane_graph
 from utils.pyg_helpers import get_edge_index_bipartite, get_edge_index_complete_graph
-from utils.data_helpers import get_object_type_onehot_waymo, get_lane_connection_type_onehot_waymo, modify_agent_states, normalize_scene, randomize_indices
+from utils.data_helpers import (
+    get_object_type_onehot_waymo, 
+    get_lane_connection_type_onehot_waymo, 
+    modify_agent_states, 
+    normalize_scene, 
+    randomize_indices,
+    extract_raw_waymo_data
+)
 from utils.torch_helpers import from_numpy
 from utils.geometry import apply_se2_transform, rotate_and_normalize_angles
 
@@ -83,190 +90,6 @@ class WaymoDatasetAutoEncoder(Dataset):
             self.files = sorted(glob.glob(self.preprocessed_dir + "/*.pkl"))
             
         self.dset_len = len(self.files)
-
-    
-    def extract_rawdata(self, agents_data: List[Dict[str, Any]]) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert the list-of-dict agent format from Waymo to flat arrays.
-
-        Parameters
-        ----------
-        agents_data
-            List where each element corresponds to a single agent and
-            replicates Waymo's *per-time-step* trajectory dictionaries.
-
-        Returns
-        -------
-        agent_data
-            Array with shape ``(num_agents, T, 8)`` containing position
-            ``(x, y)``, velocity ``(vx, vy)``, heading *(rad)*, length,
-            width and existence mask for each time-step ``T``.
-        agent_types
-            One-hot encoded array of shape ``(num_agents, 5)`` for
-            ``{"unset": 0, "vehicle": 1, "pedestrian": 2, "cyclist": 3, "other": 4}``.
-        """
-        
-        # Get indices of non-parked cars and cars that exist for the entire episode
-        agent_data = []
-        agent_types = []
-
-        for n in range(len(agents_data)):
-            # Position ---------------------------------------------------
-            ag_position = agents_data[n]['position']
-            x_values = [entry['x'] for entry in ag_position]
-            y_values = [entry['y'] for entry in ag_position]
-            ag_position = np.column_stack((x_values, y_values))
-            
-            # Heading (unwrap to (‑pi, pi]) ------------------------------
-            ag_heading = np.radians(np.array(agents_data[n]['heading']).reshape((-1, 1)))
-            ag_heading = np.mod(ag_heading + np.pi, 2 * np.pi) - np.pi
-            
-            # Velocity ---------------------------------------------------
-            ag_velocity = agents_data[n]['velocity']
-            x_values = [entry['x'] for entry in ag_velocity]
-            y_values = [entry['y'] for entry in ag_velocity]
-            ag_velocity = np.column_stack((x_values, y_values))
-            
-            # Existence & size -----------------------------------------
-            ag_existence = np.array(agents_data[n]['valid']).reshape((-1, 1))
-            ag_length = np.ones((len(ag_position), 1)) * agents_data[n]['length']
-            ag_width = np.ones((len(ag_position), 1)) * agents_data[n]['width']
-            
-            # Pack -------------------------------------------------------
-            agent_type = get_object_type_onehot_waymo(agents_data[n]['type'])
-            ag_state = np.concatenate((ag_position, ag_velocity, ag_heading, ag_length, ag_width, ag_existence), axis=-1)
-            agent_data.append(ag_state)
-            agent_types.append(agent_type)
-        
-        # convert to numpy array
-        agent_data = np.array(agent_data)
-        agent_types = np.array(agent_types)
-        
-        return agent_data, agent_types
-
-
-    def get_compact_lane_graph(self, data):
-        """Apply lane graph compression algorithm (merging lanes that connect with node degree=2).
-
-        The resulting compact graph uses *lane-group* identifiers where
-        contiguous segments have been concatenated.  All
-        connection dictionaries (``pre``, ``succ``, ``left``, ``right``)
-        are updated to reference the new identifiers.
-
-        Parameters
-        ----------
-        data
-            Dictionary from a raw Waymo pickle.  Requires the key
-            ``"lane_graph"``.
-
-        Returns
-        -------
-        compact_lane_graph
-            A dict with the same layout as the original Waymo lane graph
-            but using merged lanes.
-        """
-        
-        lane_ids = data['lane_graph']['lanes'].keys()
-        pre_pairs = data['lane_graph']['pre_pairs']
-        suc_pairs = data['lane_graph']['suc_pairs']
-        left_pairs = data['lane_graph']['left_pairs']
-        right_pairs = data['lane_graph']['right_pairs']
-
-        # Remove dangling references ------------------------------------
-        for lid in pre_pairs.keys():
-            lid1s = pre_pairs[lid]
-            for lid1 in lid1s:
-                if lid1 not in lane_ids:
-                    pre_pairs[lid].remove(lid1)
-
-        for lid in suc_pairs.keys():
-            lid1s = suc_pairs[lid]
-            for lid1 in lid1s:
-                if lid1 not in lane_ids:
-                    suc_pairs[lid].remove(lid1)
-
-        for lid in left_pairs.keys():
-            lid1s = left_pairs[lid]
-            for lid1 in lid1s:
-                if lid1 not in lane_ids:
-                    left_pairs[lid].remove(lid1)
-
-        for lid in right_pairs.keys():
-            lid1s = right_pairs[lid]
-            for lid1 in lid1s:
-                if lid1 not in lane_ids:
-                    right_pairs[lid].remove(lid1)
-
-        # Ensure every lane appears as a key ----------------------------
-        for lane_id in lane_ids:
-            if lane_id not in pre_pairs:
-                pre_pairs[lane_id] = []
-            if lane_id not in suc_pairs:
-                suc_pairs[lane_id] = []
-            if lane_id not in left_pairs:
-                left_pairs[lane_id] = []
-            if lane_id not in right_pairs:
-                right_pairs[lane_id] = []
-
-        lane_groups = find_lane_groups(pre_pairs, suc_pairs)       
-        
-        compact_lanes = {}
-        compact_pre_pairs = {}
-        compact_suc_pairs = {}
-        compact_left_pairs = {}
-        compact_right_pairs = {}
-        
-        for lane_group_id in lane_groups:
-            compact_lane = []
-            compact_pre_pair = []
-            compact_suc_pair = []
-            compact_left_pair = []
-            compact_right_pair = []
-            for i, lane_id in enumerate(lane_groups[lane_group_id]):
-                # first lane in group is used to find predecessor lane group
-                if i == 0:
-                    compact_lane.append(data['lane_graph']['lanes'][lane_id])
-                    
-                    if len(pre_pairs[lane_id]) > 0:
-                        for pre_lane_id in pre_pairs[lane_id]:
-                            compact_pre_pair.append(find_lane_group_id(pre_lane_id, lane_groups))
-                else:
-                    # avoid duplicate coordinates
-                    compact_lane.append(data['lane_graph']['lanes'][lane_id][1:])
-
-                if len(left_pairs[lane_id]) > 0:
-                    for left_lane_id in left_pairs[lane_id]:
-                        to_append = find_lane_group_id(left_lane_id, lane_groups)
-                        if to_append not in compact_left_pair:
-                            compact_left_pair.append(to_append)
-                
-                if len(right_pairs[lane_id]) > 0:
-                    for right_lane_id in right_pairs[lane_id]:
-                        to_append = find_lane_group_id(right_lane_id, lane_groups)
-                        if to_append not in compact_right_pair:
-                            compact_right_pair.append(to_append)
-
-                # last lane in group is used to find successor lane group
-                if i == len(lane_groups[lane_group_id]) - 1:
-                    if len(suc_pairs[lane_id]) > 0:
-                        for suc_lane_id in suc_pairs[lane_id]:
-                            compact_suc_pair.append(find_lane_group_id(suc_lane_id, lane_groups))
-
-            compact_lane = np.concatenate(compact_lane, axis=0)
-            compact_lanes[lane_group_id] = compact_lane
-            compact_pre_pairs[lane_group_id] = compact_pre_pair 
-            compact_suc_pairs[lane_group_id] = compact_suc_pair 
-            compact_left_pairs[lane_group_id] = compact_left_pair
-            compact_right_pairs[lane_group_id] = compact_right_pair
-        
-        compact_lane_graph = {
-            'lanes': compact_lanes,
-            'pre_pairs': compact_pre_pairs,
-            'suc_pairs': compact_suc_pairs,
-            'left_pairs': compact_left_pairs,
-            'right_pairs': compact_right_pairs
-        }
-
-        return compact_lane_graph
 
 
     def partition_compact_lane_graph(self, compact_lane_graph: Dict[str, Any]) -> Dict[str, Any]:
@@ -811,12 +634,12 @@ class WaymoDatasetAutoEncoder(Dataset):
             # Extract raw agent trajectories & types
             av_index = data['av_idx']
             agent_data = data['objects']
-            agent_states_all, agent_types_all = self.extract_rawdata(agent_data)
+            agent_states_all, agent_types_all = extract_raw_waymo_data(agent_data)
 
             # statistics here
             normalize_statistics = {}
             
-            compact_lane_graph = self.get_compact_lane_graph(copy.deepcopy(data))
+            compact_lane_graph = get_compact_lane_graph(copy.deepcopy(data))
             
             # Randomly pick a valid timestep where ego exists
             valid_timesteps = np.where(agent_states_all[av_index, :, -1] == 1)[0]

@@ -2,10 +2,71 @@ import numpy as np
 import torch
 np.set_printoptions(suppress=True)
 from utils.data_container import get_batches, get_features
-from typing import Tuple
+from typing import Tuple, Any, Dict, List
 from cfgs.config import PARTITIONED
 import os
 import pickle
+
+def extract_raw_waymo_data(agents_data: List[Dict[str, Any]]) -> Tuple[np.ndarray, np.ndarray]:
+    """Convert the list-of-dict agent format from Waymo to flat arrays.
+
+    Parameters
+    ----------
+    agents_data
+        List where each element corresponds to a single agent and
+        replicates Waymo's *per-time-step* trajectory dictionaries.
+
+    Returns
+    -------
+    agent_data
+        Array with shape ``(num_agents, T, 8)`` containing position
+        ``(x, y)``, velocity ``(vx, vy)``, heading *(rad)*, length,
+        width and existence mask for each time-step ``T``.
+    agent_types
+        One-hot encoded array of shape ``(num_agents, 5)`` for
+        ``{"unset": 0, "vehicle": 1, "pedestrian": 2, "cyclist": 3, "other": 4}``.
+    """
+    
+    # Get indices of non-parked cars and cars that exist for the entire episode
+    agent_data = []
+    agent_types = []
+
+    for n in range(len(agents_data)):
+        # Position ---------------------------------------------------
+        ag_position = agents_data[n]['position']
+        x_values = [entry['x'] for entry in ag_position]
+        y_values = [entry['y'] for entry in ag_position]
+        ag_position = np.column_stack((x_values, y_values))
+        
+        # Heading (unwrap to (‑pi, pi]) ------------------------------
+        ag_heading = np.radians(np.array(agents_data[n]['heading']).reshape((-1, 1)))
+        ag_heading = np.mod(ag_heading + np.pi, 2 * np.pi) - np.pi
+        
+        # Velocity ---------------------------------------------------
+        ag_velocity = agents_data[n]['velocity']
+        x_values = [entry['x'] for entry in ag_velocity]
+        y_values = [entry['y'] for entry in ag_velocity]
+        ag_velocity = np.column_stack((x_values, y_values))
+        
+        # Existence & size -----------------------------------------
+        ag_existence = np.array(agents_data[n]['valid']).reshape((-1, 1))
+        ag_length = np.ones((len(ag_position), 1)) * agents_data[n]['length']
+        ag_width = np.ones((len(ag_position), 1)) * agents_data[n]['width']
+        
+        # Pack -------------------------------------------------------
+        agent_type = get_object_type_onehot_waymo(agents_data[n]['type'])
+        ag_state = np.concatenate((ag_position, ag_velocity, ag_heading, ag_length, ag_width, ag_existence), axis=-1)
+        agent_data.append(ag_state)
+        agent_types.append(agent_type)
+    
+    # convert to numpy array
+    agent_data = np.array(agent_data)
+    agent_types = np.array(agent_types)
+    
+    return agent_data, agent_types
+
+def add_batch_dim(arr):
+    return np.expand_dims(arr, axis=0)
 
 def get_object_type_onehot_waymo(agent_type):
     """Return the one-hot NumPy vector encoding of an agent type."""

@@ -9,6 +9,8 @@ CONFIG_PATH  = Path(os.getenv("CONFIG_PATH", PROJECT_ROOT / "cfgs")).as_posix()
 
 ### CONSTANTS
 
+NUM_WAYMO_TRAIN_SCENARIOS = 487002
+
 # lg_type
 NON_PARTITIONED = 0
 PARTITIONED = 1 

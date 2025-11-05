@@ -2,6 +2,131 @@ import numpy as np
 np.set_printoptions(suppress=True)
 import networkx as nx
 
+def get_compact_lane_graph(data):
+    """Apply lane graph compression algorithm (merging lanes that connect with node degree=2).
+
+    The resulting compact graph uses *lane-group* identifiers where
+    contiguous segments have been concatenated.  All
+    connection dictionaries (``pre``, ``succ``, ``left``, ``right``)
+    are updated to reference the new identifiers.
+
+    Parameters
+    ----------
+    data
+        Dictionary from a raw Waymo pickle.  Requires the key
+        ``"lane_graph"``.
+
+    Returns
+    -------
+    compact_lane_graph
+        A dict with the same layout as the original Waymo lane graph
+        but using merged lanes.
+    """
+    
+    lane_ids = data['lane_graph']['lanes'].keys()
+    pre_pairs = data['lane_graph']['pre_pairs']
+    suc_pairs = data['lane_graph']['suc_pairs']
+    left_pairs = data['lane_graph']['left_pairs']
+    right_pairs = data['lane_graph']['right_pairs']
+
+    # Remove dangling references ------------------------------------
+    for lid in pre_pairs.keys():
+        lid1s = pre_pairs[lid]
+        for lid1 in lid1s:
+            if lid1 not in lane_ids:
+                pre_pairs[lid].remove(lid1)
+
+    for lid in suc_pairs.keys():
+        lid1s = suc_pairs[lid]
+        for lid1 in lid1s:
+            if lid1 not in lane_ids:
+                suc_pairs[lid].remove(lid1)
+
+    for lid in left_pairs.keys():
+        lid1s = left_pairs[lid]
+        for lid1 in lid1s:
+            if lid1 not in lane_ids:
+                left_pairs[lid].remove(lid1)
+
+    for lid in right_pairs.keys():
+        lid1s = right_pairs[lid]
+        for lid1 in lid1s:
+            if lid1 not in lane_ids:
+                right_pairs[lid].remove(lid1)
+
+    # Ensure every lane appears as a key ----------------------------
+    for lane_id in lane_ids:
+        if lane_id not in pre_pairs:
+            pre_pairs[lane_id] = []
+        if lane_id not in suc_pairs:
+            suc_pairs[lane_id] = []
+        if lane_id not in left_pairs:
+            left_pairs[lane_id] = []
+        if lane_id not in right_pairs:
+            right_pairs[lane_id] = []
+
+    lane_groups = find_lane_groups(pre_pairs, suc_pairs)       
+    
+    compact_lanes = {}
+    compact_pre_pairs = {}
+    compact_suc_pairs = {}
+    compact_left_pairs = {}
+    compact_right_pairs = {}
+    
+    for lane_group_id in lane_groups:
+        compact_lane = []
+        compact_pre_pair = []
+        compact_suc_pair = []
+        compact_left_pair = []
+        compact_right_pair = []
+        for i, lane_id in enumerate(lane_groups[lane_group_id]):
+            # first lane in group is used to find predecessor lane group
+            if i == 0:
+                compact_lane.append(data['lane_graph']['lanes'][lane_id])
+                
+                if len(pre_pairs[lane_id]) > 0:
+                    for pre_lane_id in pre_pairs[lane_id]:
+                        compact_pre_pair.append(find_lane_group_id(pre_lane_id, lane_groups))
+            else:
+                # avoid duplicate coordinates
+                compact_lane.append(data['lane_graph']['lanes'][lane_id][1:])
+
+            if len(left_pairs[lane_id]) > 0:
+                for left_lane_id in left_pairs[lane_id]:
+                    to_append = find_lane_group_id(left_lane_id, lane_groups)
+                    if to_append not in compact_left_pair:
+                        compact_left_pair.append(to_append)
+            
+            if len(right_pairs[lane_id]) > 0:
+                for right_lane_id in right_pairs[lane_id]:
+                    to_append = find_lane_group_id(right_lane_id, lane_groups)
+                    if to_append not in compact_right_pair:
+                        compact_right_pair.append(to_append)
+
+            # last lane in group is used to find successor lane group
+            if i == len(lane_groups[lane_group_id]) - 1:
+                if len(suc_pairs[lane_id]) > 0:
+                    for suc_lane_id in suc_pairs[lane_id]:
+                        compact_suc_pair.append(find_lane_group_id(suc_lane_id, lane_groups))
+
+        compact_lane = np.concatenate(compact_lane, axis=0)
+        compact_lanes[lane_group_id] = compact_lane
+        compact_pre_pairs[lane_group_id] = compact_pre_pair 
+        compact_suc_pairs[lane_group_id] = compact_suc_pair 
+        compact_left_pairs[lane_group_id] = compact_left_pair
+        compact_right_pairs[lane_group_id] = compact_right_pair
+    
+    compact_lane_graph = {
+        'lanes': compact_lanes,
+        'pre_pairs': compact_pre_pairs,
+        'suc_pairs': compact_suc_pairs,
+        'left_pairs': compact_left_pairs,
+        'right_pairs': compact_right_pairs
+    }
+
+    return compact_lane_graph
+
+
 def find_lane_groups(pre_pairs, suc_pairs):
     """Group lane IDs into compact lanes based on lane compression algorithm originally described here: https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/00490-supp.pdf"""
     def dfs(lane_id, group):

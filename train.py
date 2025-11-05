@@ -2,6 +2,7 @@ import os
 import hydra
 from models.scenario_dreamer_autoencoder import ScenarioDreamerAutoEncoder
 from models.scenario_dreamer_ldm import ScenarioDreamerLDM
+from models.ctrl_sim import CtRLSim
 
 import torch
 import shutil
@@ -15,6 +16,55 @@ from cfgs.config import CONFIG_PATH
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from utils.train_helpers import cache_latent_stats, set_latent_stats
+
+
+def train_ctrl_sim(cfg, save_dir=None):
+    datamodule = instantiate(cfg.datamodule, dataset_cfg=cfg.dataset)
+
+    monitor = 'val_loss'
+    model_checkpoint = ModelCheckpoint(monitor='val_loss', save_last=True, every_n_epochs=1, save_top_k=15, dirpath=save_dir)
+
+    lr_monitor = LearningRateMonitor(logging_interval='step')
+    model_summary = ModelSummary(max_depth=-1)
+    wandb_logger = WandbLogger(
+        project=cfg.train.wandb_project,
+        name=cfg.train.run_name,
+        entity=cfg.train.wandb_entity,
+        log_model=False,
+        save_dir=save_dir
+    )
+    if cfg.train.track:
+        logger = wandb_logger 
+    else:
+        logger = None
+
+    # resume training
+    files_in_save_dir = os.listdir(save_dir)
+    ckpt_path = None
+    for file in files_in_save_dir:
+        if file.endswith('.ckpt') and 'last' in file:
+            ckpt_path = os.path.join(save_dir, file)
+            backup_ckpt_path = os.path.join(save_dir, 'backup.ckpt')
+            dummy = torch.load(ckpt_path, map_location='cpu')
+            print("Successfully loaded last.ckpt")
+            shutil.copyfile(ckpt_path, backup_ckpt_path)
+            print("Resuming from checkpoint: ", ckpt_path)
+            del dummy
+    
+    trainer = pl.Trainer(accelerator=cfg.train.accelerator,
+                         devices=cfg.train.devices,
+                         strategy=DDPStrategy(find_unused_parameters=True, gradient_as_bucket_view=True),
+                         callbacks=[model_summary, model_checkpoint, lr_monitor],
+                         max_steps=cfg.train.max_steps,
+                         check_val_every_n_epoch=cfg.train.check_val_every_n_epoch,
+                         precision=cfg.train.precision,
+                         limit_train_batches=cfg.train.limit_train_batches, # train on smaller dataset
+                         limit_val_batches=cfg.train.limit_val_batches,
+                         gradient_clip_val=cfg.train.gradient_clip_val,
+                         logger=logger
+                        )
+    model = CtRLSim(cfg)
+    trainer.fit(model, datamodule, ckpt_path=ckpt_path)
 
 
 def train_ldm(cfg, cfg_ae, save_dir=None):
@@ -144,7 +194,7 @@ def main(cfg):
         OmegaConf.set_struct(cfg, False)   # unlock to allow setting dataset name
         cfg.dataset_name = dataset_name
         OmegaConf.set_struct(cfg, True)    # relock
-    else:
+    elif cfg.model_name == 'ldm':
         model_name = cfg.model_name
         cfg_ae = cfg.ae
         cfg = cfg.ldm
@@ -154,6 +204,12 @@ def main(cfg):
         cfg_ae.dataset_name = dataset_name
         OmegaConf.set_struct(cfg, True)    # relock
         OmegaConf.set_struct(cfg_ae, True)
+    else:
+        model_name = cfg.model_name
+        cfg = cfg.ctrl_sim
+        OmegaConf.set_struct(cfg, False)
+        cfg.dataset_name = dataset_name
+        OmegaConf.set_struct(cfg, True)
     
     pl.seed_everything(cfg.train.seed, workers=True)
 
@@ -166,6 +222,8 @@ def main(cfg):
         train_autoencoder(cfg, save_dir)
     elif model_name == 'ldm':
         train_ldm(cfg, cfg_ae, save_dir) 
+    elif model_name == 'ctrl_sim':
+        train_ctrl_sim(cfg, save_dir)
 
 if __name__ == '__main__':
     main()

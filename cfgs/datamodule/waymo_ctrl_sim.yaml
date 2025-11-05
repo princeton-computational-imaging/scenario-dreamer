@@ -1,0 +1,8 @@
+defaults: 
+- base
+
+_target_: datamodules.waymo.waymo_datamodule_ctrl_sim.WaymoDataModuleCtRLSim
+
+train_batch_size: 16
+val_batch_size: 16
+dataset_cfg: null

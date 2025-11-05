@@ -1,0 +1,16 @@
+hidden_dim: 256 # ctrl-sim model hidden dim
+map_attr: 3 # number of map attributes (x,y,existence)
+num_road_types: 1 # number of road types in map encoder
+num_heads: 8 # number of attention heads
+num_reward_components: 1 # number of modeled reward components
+dim_feedforward: 1024 # feedforward dim in transformer
+dropout: 0 # model is not overfitting
+state_dim: 13 # number of features in state. Note we have is_ego feature
+predict_rtg: True # predict return-to-go
+num_transformer_encoder_layers: 2 # number of transformer encoder layers
+num_decoder_layers: 4 # number of transformer decoder layers
+loss_action_coef: 1. # coefficient for action loss
+encode_initial_state: True # whether to encode initial state in encoder
+trajeglish: False # set to true to train trajeglish model: https://arxiv.org/abs/2312.04535
+ctrl_sim: True # set to true to train ctrl-sim model: https://arxiv.org/abs/2403.19918
+il: False # set to true to train imitation learning model (no return tokens)

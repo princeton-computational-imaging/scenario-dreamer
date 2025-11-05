@@ -3,6 +3,13 @@ import torch
 np.set_printoptions(suppress=True)
 from torch_geometric.data import HeteroData
 
+
+class CtRLSimData(HeteroData):
+    """ Torch-Geometric `HeteroData` that auto-increments batch indices for proper batching."""
+    def __inc__(self, key, value, store):
+        return 0
+
+
 class ScenarioDreamerData(HeteroData):
     """Torch-Geometric `HeteroData` that auto-increments agent↔lane edge indices for proper batching."""
     def __inc__(self, key, value, store):

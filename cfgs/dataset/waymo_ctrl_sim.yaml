@@ -1,0 +1,29 @@
+preprocess: True # get data from preprocessed files if True, otherwise write preprocessed data to disk (you can only train with preprocess=True).
+preprocess_dir: ${dataset_root}/scenario_dreamer_ctrl_sim_preprocess # directory to save preprocessed data
+dataset_path: ${dataset_root}/scenario_dreamer_waymo # path to extracted waymo dataset that will be loaded and preprocessed
+train_context_length: 32 # CtRL-Sim context length (in timesteps)
+max_num_lanes: 100 # maximum number of lanes in context
+max_num_agents: 24 # maximum number of modeled agents
+lane_fov: 125 # lane graph field of view (in meters)
+fov: 80 # agent field of view (in meters)
+num_points_per_lane: 50 # number of points per lane segment
+upsample_lane_num_points: 1000 # number of points per lane segment after upsampling
+simulation_hz: 10 # simulation frequency in Hz
+value_fn_horizon: 20 # we clip reward to go (RTG) to this horizon (in seconds)
+offroad_threshold: 2.5 # threshold for offroad agents in metres
+moving_threshold: 0 # minimum speed (in m/s) for an agent to be considered "moving"
+normalize_to_random_timestep: True # if True, normalize context to random timestep within the context during training
+rew_multiplier: 10 # reward multiplier to scale up rewards during training (not necessary)
+max_veh_ego_distance: 10 # maximum distance of vehicles from ego to be modeled (in metres)
+min_rtg_veh: -10 # minimum reward to go (RTG) for vehicles
+max_rtg_veh: 0 # maximum reward to go (RTG) for vehicles
+rtg_discretization: 350 # number of discrete bins for reward to go (RTG) values
+
+# k-disks tokenizer settings
+collect_state_transitions: False # if True, collect state transitions for k-disks tokenizer training
+k_disks_vocab_path: ${project_root}/metadata/k_disks_vocab_384_10Hz_seed42.pkl # path to k-disks vocabulary file
+vocab_size: 384 # size of k-disks vocabulary
+k_disks_eps: 0.035 # epsilon value for k-disks clustering (see pg 5. of https://arxiv.org/abs/2312.04535)
+tokenize_with_nucleus_sampling: True # if True, use nucleus sampling for k-disks tokenization
+tokenization_temperature: 0.008 # temperature for k-disks tokenization
+tokenization_nucleus: 0.95 # nucleus value for k-disks tokenization
