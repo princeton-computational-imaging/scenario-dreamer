@@ -395,7 +395,10 @@ def generate_simulation_environments(model, cfg, save_dir):
 
      # Generate extra samples to account for potential failures
      # NuPlan exhibits more generation failures than Waymo, so we adjust accordingly
-    max_num_samples = int(cfg.eval.num_samples * 20) 
+    max_num_samples = int(cfg.eval.num_samples * cfg.eval.sim_envs.overhead_factor) 
+
+    print(f"Generating {cfg.eval.num_samples} simulation environments...")
+    print(f"To account for degenerate samples, we will generate {max_num_samples} samples (overhead_factor={cfg.eval.sim_envs.overhead_factor}).")
 
     it = 0
     while len(os.listdir(complete_samples_dir)) < cfg.eval.num_samples:
@@ -556,7 +559,7 @@ def generate_simulation_environments(model, cfg, save_dir):
                         np.argmax(data['agent_types'], axis=1), 
                         np.argmax(data['lane_types'], axis=1) if cfg.dataset_name == 'nuplan' else None,
                         f"{it}_{sample}_{'PARTIAL' if not data['route_completed'] else 'COMPLETE'}.png", 
-                        f"viz_sim_envs_{cfg.dataset_name}", 
+                        os.path.join(save_dir, f"viz_sim_envs_{cfg.dataset_name}"), 
                         return_fig=False,
                         tile_occupancy=data['tile_occupancy'],
                         adaptive_limits=True,
