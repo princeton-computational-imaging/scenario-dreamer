@@ -295,7 +295,7 @@ python train.py \
   model_name=ldm \
   ldm.model.autoencoder_run_name=[your_autoencoder_run_name] \
   ldm.train.run_name=[your_ldm_run_name] \
-  ldm.train.num_devices=8 \
+  ldm.train.devices=8 \
   ldm.datamodule.train_batch_size=128 \
   ldm.datamodule.val_batch_size=128 \
   ldm.model.num_l2l_blocks=3 \
