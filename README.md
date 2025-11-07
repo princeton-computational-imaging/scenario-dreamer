@@ -546,6 +546,7 @@ python eval.py \
 <details> <summary><strong>2. Generate and Visualize Simulation Environments</strong></summary>
 
 **Note: Scenario Dreamer supports the generation of nuPlan simulation environments; however, simulation environment generation has been primarily verified on the Waymo dataset.**
+
 **Note: To generate the most diverse and interesting simulation environments, we recommend setting `ldm.eval.sim_envs.nocturne_compatible_only=False` and `dataset_name=waymo`.**
 
 To generate and visualize 10 simulation environments from your trained model, run:
