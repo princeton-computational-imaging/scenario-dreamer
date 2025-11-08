@@ -8,10 +8,11 @@ from utils.geometry import normalize_lanes_and_agents
 from utils.pyg_helpers import get_edge_index_complete_graph, get_edge_index_bipartite
 from utils.torch_helpers import from_numpy
 from utils.data_helpers import normalize_scene
+from utils.metrics_helpers import get_lane_length
 from cfgs.config import LANE_CONNECTION_TYPES_WAYMO, LANE_CONNECTION_TYPES_NUPLAN, PARTITIONED
 
 
-def normalize_and_crop_scene(cond_d, new_d, normalize_dict, cfg, dataset_name, num_upsample_points=1000):
+def normalize_and_crop_scene(cond_d, new_d, normalize_dict, cfg, dataset_name, num_upsample_points=1000, min_lane_length=0.1):
     """ Normalize and crop lanes and agents as preprocessing step for inpainting."""
     lanes = cond_d['road_points']
     agents = cond_d['agent_states']
@@ -63,6 +64,12 @@ def normalize_and_crop_scene(cond_d, new_d, normalize_dict, cfg, dataset_name, n
     # lanes before partition (bp) and within fov (wf)
     lanes_mask_bp_and_wf = np.any(
         lane_points_mask_bp_and_wf, axis=1)
+
+    # remove lanes that are too short
+    for i, lane in enumerate(lanes):
+        if get_lane_length(lanes[i, lane_points_mask_bp_and_wf[i]]) < min_lane_length:
+            lanes_mask_bp_and_wf[i] = False
+
     lane_ids_bp_and_wf = np.where(lanes_mask_bp_and_wf)[0]
     lane_ids_others = np.setdiff1d(np.arange(len(lanes)), lane_ids_bp_and_wf)
 
