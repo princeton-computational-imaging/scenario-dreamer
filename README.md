@@ -576,7 +576,7 @@ By setting `ldm.eval.visualize=True`, the script will visualize the partially ge
 <details> <summary><strong>3. What to Expect</strong></summary>
 
 - 10 simulation environments will be generated on 1 GPU with a default batch size of 32. 
-- The partial and complete simulation environments will be visualized to `$PROJECT_ROOT/viz_sim_envs_[waymo|nuplan]`.
+- The partial and complete simulation environments will be visualized to `$SCRATCH_ROOT/checkpoints/[your_ldm_run_name]/viz_sim_envs_[waymo|nuplan]`.
 - The complete simulation environments are written to disk at `$SCRATCH_ROOT/checkpoints/[your_ldm_run_name]/complete_sim_envs`.
 
 </details>
