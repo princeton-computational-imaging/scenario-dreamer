@@ -14,7 +14,7 @@ cache_samples: False # cache samples to disk?
 conditioning_path: null # optional path to conditioning data for lane-conditioned or inpainting evaluation
 
 sim_envs:
-  num_inpainting_candidates: 16 # number of inpainting candidates to generate per partial scene when generating simulation environments
+  num_inpainting_candidates: 8 # number of inpainting candidates to generate per partial scene when generating simulation environments
   overhead_factor: 5 # generate num_samples * overhead_factor initial scenes to account for filtering when generating simulation environments
   route_length: 500 # length of routes (in meters) to generate simulation environments for
   nocturne_compatible_only: True # only generate simulation environments from the distribution of Nocturne/GPUDrive-compatible scenes?

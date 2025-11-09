@@ -645,7 +645,7 @@ def _extend_simulation_environment(current_env, new_tile, target_route_length, d
     # find mapping between new tile digraph and augmented current env digraph
     new_tile_id_to_current_env_id = {}
     for lane_id in range(len(before_partition_lane_ids_new_tile)):
-        new_tile_id_to_current_env_id[lane_id] = new_tile['lane_ids'][lane_id]
+        new_tile_id_to_current_env_id[lane_id] = int(new_tile['lane_ids'][lane_id])
     for i, lane_id in enumerate(after_partition_lane_ids_new_tile):
         new_tile_id_to_current_env_id[lane_id] = current_env['num_lanes'] + i
     
@@ -670,7 +670,6 @@ def _extend_simulation_environment(current_env, new_tile, target_route_length, d
         )
     
     # build new road connection types for augmented env
-    lane_ids_in_new_tile = list(new_tile_id_to_current_env_id.values())
     num_current_env_lanes = current_env['num_lanes']
     num_augmented_env_lanes = num_current_env_lanes + num_new_lanes
     l2l_edge_index_augmented_env = get_edge_index_complete_graph(num_augmented_env_lanes).transpose(1, 0)
@@ -679,18 +678,14 @@ def _extend_simulation_environment(current_env, new_tile, target_route_length, d
     for i, edge in enumerate(l2l_edge_index_augmented_env):
         src = edge[0].item()
         dst = edge[1].item()
-        # both lanes not in new tile, pull from current env
-        if (src not in lane_ids_in_new_tile) and (dst not in lane_ids_in_new_tile):
+
+        if (src, dst) in road_connection_types_map_current_env:
             new_road_connection_types[i] = road_connection_types_map_current_env[(src, dst)]
-        # both lanes in new tile, pull from new tile
-        elif (src in lane_ids_in_new_tile) and (dst in lane_ids_in_new_tile):
-            if src < num_current_env_lanes and dst < num_current_env_lanes:
-                new_road_connection_types[i] = road_connection_types_map_current_env[(src, dst)]
-            else:
-                new_road_connection_types[i] = road_connection_types_map_new_tile[(src, dst)]
-        # one lane in new tile, other not in new tile. Set to no-connection
+        elif (src, dst) in road_connection_types_map_new_tile:
+            new_road_connection_types[i] = road_connection_types_map_new_tile[(src, dst)]
+        # no connection if not in either map
         else:
-            continue # already zero
+            continue
 
     current_env['road_connection_types'] = np.eye(6 if dataset == 'waymo' else 4)[new_road_connection_types.astype(int)]
     current_env['agent_types'] = np.concatenate(
