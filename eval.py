@@ -41,6 +41,11 @@ def generate_simulation_environments(cfg, cfg_ae, save_dir=None):
 
 def eval_ldm(cfg, cfg_ae, save_dir=None):
     """ Evaluate the Scenario Dreamer Latent Diffusion Model."""
+    if cfg.eval.mode == 'metrics':
+        metric_evaluator = Metrics(cfg, cfg_ae)
+        metric_evaluator.compute_metrics()
+        return
+    
     cfg = set_latent_stats(cfg)
     
     # load last ckpt for inference
@@ -55,23 +60,19 @@ def eval_ldm(cfg, cfg_ae, save_dir=None):
     assert ckpt_path is not None, "No checkpoint found in the save directory."
     
     # generate samples
-    if cfg.eval.mode != 'metrics':
-        model = ScenarioDreamerLDM.load_from_checkpoint(ckpt_path, cfg=cfg, cfg_ae=cfg_ae).to('cuda')
-        model.generate(
-            mode = cfg.eval.mode, # Scenario Dreamer supports multiple generation modes: initial_scene, lane_conditioned, and inpainting
-            num_samples = cfg.eval.num_samples,
-            batch_size = cfg.eval.batch_size,
-            cache_samples = cfg.eval.cache_samples,
-            visualize = cfg.eval.visualize,
-            conditioning_path = cfg.eval.conditioning_path,
-            cache_dir = os.path.join(save_dir, f'{cfg.eval.mode}_samples'),
-            viz_dir = cfg.eval.viz_dir,
-            save_wandb = False,
-            return_samples=False,
-        )
-    else:
-        metric_evaluator = Metrics(cfg)
-        metric_evaluator.compute_metrics()
+    model = ScenarioDreamerLDM.load_from_checkpoint(ckpt_path, cfg=cfg, cfg_ae=cfg_ae).to('cuda')
+    model.generate(
+        mode = cfg.eval.mode, # Scenario Dreamer supports multiple generation modes: initial_scene, lane_conditioned, and inpainting
+        num_samples = cfg.eval.num_samples,
+        batch_size = cfg.eval.batch_size,
+        cache_samples = cfg.eval.cache_samples,
+        visualize = cfg.eval.visualize,
+        conditioning_path = cfg.eval.conditioning_path,
+        cache_dir = os.path.join(save_dir, f'{cfg.eval.mode}_samples'),
+        viz_dir = cfg.eval.viz_dir,
+        save_wandb = False,
+        return_samples=False,
+    )
 
 
 

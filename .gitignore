@@ -4,3 +4,4 @@ __pycache__/
 */__pycache__/
 lightning_logs/
 viz_*/
+movies*/

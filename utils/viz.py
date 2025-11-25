@@ -6,6 +6,7 @@ import os
 from utils.geometry import *
 import math
 from cfgs.config import LANE_CONNECTION_TYPES_WAYMO, LANE_CONNECTION_TYPES_NUPLAN
+from moviepy.editor import ImageSequenceClip
 import wandb
 
 def plot_scene(
@@ -86,7 +87,7 @@ def plot_scene(
 
         # Lane annotations (for debugging)
         # label_idx = len(lane) // 2
-        # ax.annotate(i, (lane[label_idx, 0], lane[label_idx, 1]), zorder=5, fontsize=5)
+        # ax.annotate(i, (lane[label_idx, 0], lane[label_idx, 1]), zorder=20, fontsize=1)
 
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
@@ -356,3 +357,179 @@ def plot_k_disks_vocabulary(V, png_path, dpi=1000):
         plt.plot([state[0], state[0] + dx], [state[1], state[1] + dy], linewidth=0.5, color="black")
     plt.savefig(png_path, dpi=dpi)
     plt.clf()
+
+
+def render_state(
+        agent_states, 
+        agent_types, 
+        route, 
+        lanes, 
+        lanes_mask, 
+        t, 
+        name, 
+        movie_path='video_frames', 
+        lightweight=False
+    ):
+    """ Renders the current state of the simulation and saves it as a PNG image."""
+    png_dir = f'{movie_path}/{name}'
+    if not os.path.exists(png_dir):
+        os.makedirs(png_dir, exist_ok=True)
+
+    agent_alpha = 1.0
+    agent_zord = 4
+    ego_color = '#de5959'
+    ego_alpha = 1.0
+    ego_zord = 5
+
+    x_min, y_min, x_max, y_max = -75, -75, 75, 75
+
+    fig, ax = plt.subplots()
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.set_aspect('equal', adjustable='box')
+    ax.axis('off')
+
+    lanes = np.concatenate([lanes, lanes_mask[:, :, None]], axis=-1)
+
+    # Plot lanes only
+    color = 'grey'
+    linestyle = 'dashed'
+    zorder = 2
+    for lane in lanes:
+        exists = lane[:, 2] == 1
+        plt.plot(
+            lane[:, 0][exists], 
+            lane[:, 1][exists], 
+            color=color, 
+            linewidth=1.5, 
+            linestyle=linestyle, 
+            zorder=zorder
+        )
+        plt.plot(
+            lane[:, 0][exists], 
+            lane[:, 1][exists], 
+            color='lightgrey', 
+            linewidth=20, 
+            linestyle='solid', 
+            zorder=zorder-1
+        )
+        if exists[0]:
+            plt.scatter(
+                lane[0, 0], 
+                lane[0, 1], 
+                color=color, 
+                s=8, 
+                zorder=zorder+1
+            )
+        if exists[-1]:
+            plt.scatter(
+                lane[-1, 0], 
+                lane[-1, 1], 
+                color=color, 
+                s=8, 
+                zorder=zorder+1
+            )
+
+    agent_types = np.argmax(agent_types, axis=1)
+    
+    # Plot agent bounding boxes and headings
+    for a in range(len(agent_states)):
+        if agent_states[a, -1] == 0:
+            continue
+
+        edgecolor = 'black'
+        if a == len(agent_states) - 1:
+            color = ego_color 
+            alpha = ego_alpha 
+            zord = ego_zord
+        else:
+            alpha = agent_alpha 
+            zord = agent_zord
+            
+            if agent_types[a] == 1:
+                color = '#87b3e6' # Light blue
+            elif agent_types[a] == 2:
+                color = '#bea9f5' # Light purple
+            elif agent_types[a] == 3:
+                color = 'grey'
+            else:
+                color = "grey"
+
+        # Draw bounding boxes
+        length = agent_states[a, 5] * 0.8
+        width = agent_states[a, 6] * 0.8
+        bbox_x_min = agent_states[a, 0] - width / 2
+        bbox_y_min = agent_states[a, 1] - length / 2
+        lw = 0.35 / ((x_max - x_min) / 140)
+        rectangle = mpatches.FancyBboxPatch(
+            (bbox_x_min, bbox_y_min), 
+            width, 
+            length, 
+            ec=edgecolor, 
+            fc=color,
+            linewidth=lw, 
+            alpha=alpha, 
+            boxstyle=mpatches.BoxStyle("Round", pad=0.3), 
+            zorder=zord
+        )
+        
+        tr = transforms.Affine2D().rotate_deg_around(
+            agent_states[a, 0], 
+            agent_states[a, 1], 
+            np.degrees(agent_states[a, 4]) - 90
+        ) + ax.transData
+        rectangle.set_transform(tr)
+        ax.add_patch(rectangle)
+        
+        # Draw heading line
+        if agent_types[a] in [1, 2]:
+            heading_length = length / 2 + 1.5
+            heading_angle_rad = agent_states[a, 4]
+            vehicle_center = agent_states[a, :2]
+            line_end_x = (vehicle_center[0] + 
+                          heading_length * math.cos(heading_angle_rad))
+            line_end_y = (vehicle_center[1] + 
+                          heading_length * math.sin(heading_angle_rad))
+            ax.plot(
+                [vehicle_center[0], line_end_x], 
+                [vehicle_center[1], line_end_y], 
+                color='black', 
+                zorder=zord+1, 
+                alpha=0.25, 
+                linewidth=0.3 / ((x_max - x_min) / 140))
+    
+    # for debugging
+    # ax.annotate(a, (vehicle_center[0], vehicle_center[1]), zorder=8, fontsize=5) 
+    
+    if route is not None:
+        plt.scatter(
+            route[:, 0], 
+            route[:, 1], 
+            color=ego_color, 
+            zorder=ego_zord, 
+            s=8
+        )
+    plt.tight_layout()
+    dpi = 100 if lightweight else 500
+    plt.savefig(f'{png_dir}/frame_{t:03}.png', dpi=dpi)
+    plt.close(fig)
+
+
+def generate_video(name, output_dir, delete_images=False):
+    """ Generates a video from a sequence of images saved in a directory."""
+    image_folder = f'{output_dir}/{name}'
+    
+    # Get list of all image files in the directory
+    images = [os.path.join(image_folder, img) for img in sorted(os.listdir(image_folder)) if img.endswith(".png")]
+    images = [str1.replace('\n', '') for str1 in images]
+    images.sort()  # Sort by filename
+
+    # Create a video clip from the image sequence
+    clip = ImageSequenceClip(images, fps=20)
+    
+    # Write the video file
+    clip.write_videofile(f"{image_folder}.mp4", codec='libx264')
+
+    if delete_images:
+        for image in images:
+            os.remove(image)

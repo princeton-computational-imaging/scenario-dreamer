@@ -107,3 +107,55 @@ def batched_collision_checker(ego_state, agent_states):
                 collision[a, t] = 1  # Mark as collision
 
     return collision.astype(int)
+
+
+def compute_collision_states_one_scene(vehicles):
+    """ Compute collision states for all vehicles in one scene.
+    We use this simpler and more efficient collision checker for computing behaviour model metrics."""
+    def compute_vehicle_circles(xy_position, heading, length, width):
+        """ Approximate a vehicle as multiple circles along its length."""
+        num_circles = 5
+        radius = width / 2
+        relative_x_positions = np.linspace(-length / 2 + radius, length / 2 - radius, num_circles)
+        
+        # Compute the centroids of the circles
+        # First, create the (x, y) relative offsets based on heading
+        dx = np.cos(heading) * relative_x_positions
+        dy = np.sin(heading) * relative_x_positions
+        
+        # Add these offsets to the vehicle's position to get the circle centroids
+        centroids = np.column_stack((xy_position[0] + dx, xy_position[1] + dy))
+        
+        return centroids, np.array([radius]).repeat(num_circles)
+    
+    centroids_all = []
+    radii_all = []
+    for vehicle in vehicles:
+        # vehicle: [pos_x, pos_y, speed, cos(heading), sin(heading), length, width]
+        heading = np.arctan2(vehicle[4], vehicle[3])
+        centroids, radii = compute_vehicle_circles(vehicle[:2], heading, vehicle[5], vehicle[6])
+        centroids_all.append(centroids)
+        radii_all.append(radii)
+    centroids_all = np.array(centroids_all)
+    radii_all = np.array(radii_all)
+
+    collision_state = []
+    for j in range(len(vehicles)):
+        is_in_collision = False
+        for k in range(len(vehicles)):
+            if j == k:
+                continue
+            
+            thresh = (vehicles[j, 6] + vehicles[k, 6]) / np.sqrt(3.8)
+            dist = np.linalg.norm(centroids_all[j, :, None] - centroids_all[k, None, :], axis=-1)
+            bad = dist < thresh 
+            if bad.sum() >= 1:
+                is_in_collision = True 
+                break
+        
+        if is_in_collision:
+            collision_state.append(1)
+        else:
+            collision_state.append(0)
+    
+    return np.array(collision_state).astype(bool)

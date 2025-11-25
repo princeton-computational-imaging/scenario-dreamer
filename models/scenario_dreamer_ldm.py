@@ -12,7 +12,8 @@ from cfgs.config import PROPORTION_NOCTURNE_COMPATIBLE, NON_PARTITIONED, NOCTURN
 from utils.pyg_helpers import get_edge_index_complete_graph, get_edge_index_bipartite
 from utils.data_helpers import unnormalize_scene, normalize_latents, unnormalize_latents, convert_batch_to_scenarios, reorder_indices
 from utils.inpainting_helpers import normalize_and_crop_scene, sample_num_lanes_agents_inpainting
-from utils.sim_env_helpers import estimate_heading, sample_route, get_default_route_center_yaw
+from utils.sim_env_helpers import sample_route, get_default_route_center_yaw
+from utils.lane_graph_helpers import estimate_heading
 from utils.torch_helpers import from_numpy
 from utils.viz import visualize_batch
 

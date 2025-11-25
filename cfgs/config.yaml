@@ -32,6 +32,12 @@ preprocess_nuplan:
   chunk_idx: -1 # If chunk_idx >= 0, indexes into the chunk_idx'th chunk of size chunk_size. If chunk_idx=-1, process all chunks in parallel processes
   chunk_size: 50000 # size of each chunk to process in parallel processes, if chunk_idx >= 0
 
+postprocess_sim_envs:
+  run_name: scenario_dreamer_ldm_large_${dataset_name.name} # run name of ldm that generated the simulation environments
+  pre_path: ${scratch_root}/checkpoints/${postprocess_sim_envs.run_name}/complete_sim_envs # input path for generated simulation environments
+  post_path: ${project_root}/metadata/simulation_environment_datasets/scenario_dreamer_${dataset_name.name}_${postprocess_sim_envs.route_length}m # output path for post-processed simulation environments
+  route_length: 200 # route length for post-processing
+
 model_name: autoencoder # or ldm or ctrl_sim
 
 # hacky way to not have to manually change the dataset name in all config groups from command line
@@ -54,3 +60,4 @@ defaults:
   - train@ctrl_sim.train:      ${dataset_name}_ctrl_sim
   - model@ctrl_sim.model:      ${dataset_name}_ctrl_sim
   - datamodule@ctrl_sim.datamodule: ${dataset_name}_ctrl_sim
+  - sim: base

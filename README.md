@@ -36,8 +36,10 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 - [x] [10/31/2025] Support generation of large simulation environments
 - [x] [11/05/2025] CtRL-Sim Dataset Preprocessing
 - [x] [11/05/2025] Train CtRL-Sim behaviour model on Waymo
-- [ ] [ETA: 11/07/2025] Evaluate planners in Scenario Dreamer environments
-- [ ] [ETA: 11/07/2025] Train Scenario-Dreamer compatible agents in GPUDrive
+- [x] [11/25/2025] Release of 1M-step pre-trained CtRL-Sim checkpoint
+- [x] [11/25/2025] Evaluate IDM policy in Scenario Dreamer environments
+- [ ] [ETA: 12/12/2025] Train Scenario-Dreamer compatible agents in GPUDrive
+- [ ] [ETA: 12/12/2025] Evaluate GPU-trained RL policy in Scenario Dreamer environments
 
 ## Table of Contents
 1. [Setup](#setup)
@@ -46,8 +48,9 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 4. [Pre-Trained Checkpoints](#pretrained-checkpoints)
 5. [Training](#training)
 6. [Evaluation](#evaluation)
-7. [Citation](#citation)
-8. [Acknowledgements](#acknowledgements)
+7. [Simulation](#simulation)
+8. [Citation](#citation)
+9. [Acknowledgements](#acknowledgements)
 
 ## Setup <a name="setup"></a>
 
@@ -161,6 +164,7 @@ gdown --folder https://drive.google.com/drive/folders/1G9jUA_wgF2Vo40I5HckO1yxUj
 | [LDM Large](https://drive.google.com/drive/folders/1xV35C5aEjbjbGsujzz134VvwgrZG4gWW?usp=sharing)                                     |  Waymo  | 12.4 GB  | `06a1a65e9949f55c3398aeadacde388b03a6705f2661bc273cf43e7319de4cd5` |
 | [Autoencoder](https://drive.google.com/drive/folders/1d7mX2GcD_1SP2YT5hWWXtAmm8ralOM_d?usp=sharing)                                   |  Nuplan | 371 MB   | `386b1f89eda71c5cdf6d29f7c343293e1a74bbd09395bfdeab6c2fb57f43e258` |
 | [LDM Large](https://drive.google.com/drive/folders/1Uhtzy8ovrvMU6lhksppIwmnG6G3o0GRM?usp=sharing)                                     |  Nuplan | 12.5 GB  | `2151e59307282e29b456ffc7338b9ece92fc2e2cf22ef93a67929da3176b5c59` |
+| [CtRL-Sim](https://drive.google.com/drive/folders/1vw84BCfqqolY4DTl3YXOZwfY6nYnCmNo?usp=sharing)                                     |  Waymo | 83.3 MB  | `8ed2d3a0546a06907f797224492c44b38013ae804af1de0fe9991814d12d0062` |
 
 **Note**: The LDM Large checkpoints were trained for 250k steps. While the Scenario Dreamer paper reports results at 165k steps, training to 250k steps leads to improvements across most metrics. For this reason, we are releasing the 250k step checkpoints and the expected results are marginally better than those reported in the paper.
 
@@ -318,7 +322,7 @@ python train.py \
 
 </details>
 
-### 📈 CtRL-Sim Training
+### 📈 CtRL-Sim Training <a name="ctrlsim-training"></a>
 
 <details> <summary><strong>1. Prerequisites</strong></summary>
 
@@ -535,7 +539,7 @@ python eval.py \
 
 </details>
 
-### 🚀 Generate Scenario Dreamer Simulation Environments
+### 🚀 Generate Scenario Dreamer Simulation Environments <a name="generate-scenario-dreamer-simulation-environments"></a>
 
 <details> <summary><strong>1. Prerequisites</strong></summary>
 
@@ -583,13 +587,65 @@ By setting `ldm.eval.visualize=True`, the script will visualize the partially ge
 
 </details>
 
+## Simulation <a name="simulation"></a>
+
+### 🚗 Run Simulations in Scenario Dreamer Environments
+
+<details> <summary><strong>1. Prerequisites</strong></summary>
+
+- **Simulation Environments**: You need a set of postprocessed simulation environments. You have two options:
+  - **Option A (Generate your own)**: Generate simulation environments by following the instructions in [Generate Scenario Dreamer Simulation Environments](#generate-scenario-dreamer-simulation-environments). Then, postprocess the generated simulation environments:
+    ```bash
+    python data_processing/postprocess_simulation_environments.py \
+      dataset_name=waymo \
+      postprocess_sim_envs.run_name=[your_ldm_run_name] \
+      postprocess_sim_envs.route_length=200
+    ```
+  - **Option B (Use pre-generated)**: By default, we provide a small set of 75 postprocessed Waymo simulation environments, each with a 200 m route length in [`metadata/simulation_environment_datasets/scenario_dreamer_waymo_200m`](metadata/simulation_environment_datasets/scenario_dreamer_waymo_200m). 
+
+- **Trained CtRL-Sim Model**: You need a trained CtRL-Sim behaviour model checkpoint. You can either:
+  - Train your own by following the instructions in [CtRL-Sim Training](#ctrlsim-training).
+  - Download a pre-trained 1M step checkpoint from [Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing) and place the `ctrl_sim_waymo_1M_steps` directory in `$SCRATCH_ROOT/checkpoints`.
+
+</details>
+
+<details> <summary><strong>2. Run Simulations</strong></summary>
+
+To run simulations in Scenario Dreamer environments, run:
+
+```bash
+python run_simulation.py \
+  sim.dataset_path=[path_to_postprocessed_sim_envs] \
+  sim.behaviour_model.run_name=[ctrl_sim_run_name]
+```
+
+By default, `sim.dataset_path` points to [`metadata/simulation_environment_datasets/scenario_dreamer_waymo_200m`](metadata/simulation_environment_datasets/scenario_dreamer_waymo_200m), so you can omit this parameter if using the pre-generated environments. By default, `sim.behaviour_model.run_name` is set to `ctrl_sim_waymo_1M_steps`.
+
+You can optionally enable visualization of simulation rollouts as videos by setting `sim.visualize=True`. To make video generation lightweight (runs faster with lower DPI and frame rate), set `sim.lightweight=True`. To compute and display planning metrics in a verbose way after each simulation, set `sim.verbose=True`.
+
+By default, we simulate vehicles, pedestrians, and cyclists. To simulate only vehicles (which yields a 2-3x speedup, due to not having to simulate a large number of pedestrians), set `sim.simulate_vehicles_only=True`.
+
+</details>
+
+<details> <summary><strong>3. What to Expect</strong></summary>
+
+- The simulator will run through all simulation environments in the specified dataset path.
+- By default, each simulation runs at 10 Hz for 400 steps (configurable via `sim.steps`), which is tailored to 200 m route lengths. 
+- The IDM policy is used by default to control the ego vehicle, while other agents are controlled by the CtRL-Sim behaviour model.
+- If visualization is enabled, videos will be saved to the specified `sim.movie_path` directory.
+- If verbose mode is enabled, metrics (collision rate, off-route rate, completion rate, and progress) will be printed after each simulation.
+- Final aggregated metrics across all simulations will be printed at the end of execution.
+
+</details>
+
 ## Citation <a name="citation"></a>
 
 ```bibtex
 @InProceedings{rowe2025scenariodreamer,
   title={Scenario Dreamer: Vectorized Latent Diffusion for Generating Driving Simulation Environments},
   author={Rowe, Luke and Girgis, Roger and Gosselin, Anthony and Paull, Liam and Pal, Christopher and Heide, Felix},
-  booktitle = {CVPR},
+  booktitle={Proceedings of the Computer Vision and Pattern Recognition Conference},
+  pages={17207--17218},
   year={2025}
 }
 ```

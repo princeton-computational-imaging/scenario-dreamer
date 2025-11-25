@@ -1,4 +1,5 @@
 import os
+import copy
 import pickle
 import numpy as np
 import networkx as nx
@@ -6,12 +7,295 @@ import random
 import torch
 
 from cfgs.config import LANE_CONNECTION_TYPES_WAYMO, LANE_CONNECTION_TYPES_NUPLAN
-from utils.metrics_helpers import get_networkx_lane_graph, get_networkx_lane_graph_without_traffic_lights, get_lane_length
+from utils.metrics_helpers import (
+    get_networkx_lane_graph, 
+    get_networkx_lane_graph_without_traffic_lights, 
+    get_lane_length,
+    get_compact_lane_graph
+)
 from utils.geometry import normalize_angle
-from utils.lane_graph_helpers import resample_polyline
+from utils.lane_graph_helpers import resample_polyline, resample_polyline_every, resample_lanes, estimate_heading
 from utils.collision_helpers import batched_collision_checker, is_colliding
 from utils.pyg_helpers import get_edge_index_complete_graph
 from utils.viz import plot_scene
+
+
+def postprocess_sim_env(
+        pre_env, 
+        route_length=500,
+        dataset='waymo',
+        heading_tolerance=np.pi/6, 
+        length_tolerance=15,
+        num_points_per_lane=50,
+        offroad_threshold=2.5):
+    """ Postprocess complete simulation environment to be compatible with simulator:
+    - downsample route and clip to desired route length
+    - removing colliding/offroad agents
+    - remove vehicles whose heading deviation to closest lane is >= heading_tolerance radians
+    - remove excessively large vehicles (length > length_tolerance metres)
+    - reformat agents into expected simulator format: shape (N, 1, 8) with attributes: [pos_x, pos_y, vel_x, vel_y, theta, l, w, exists]
+    - apply lane graph compression algorithm and resample the lanes to num_points_per_lane each
+    """
+    if dataset == 'nuplan':
+        LANE_CONNECTION_TYPES = LANE_CONNECTION_TYPES_NUPLAN
+    else:
+        LANE_CONNECTION_TYPES = LANE_CONNECTION_TYPES_WAYMO
+
+    # simulator-compatible environment
+    post_env = {}
+
+    # reformat route
+    ego_route = resample_polyline_every(pre_env['route'], every=1)
+    assert len(ego_route) >= route_length
+    ego_route = ego_route[:route_length]
+    post_env['route'] = ego_route
+
+    # remove:
+    # - colliding agents
+    # - offroad agents
+    # - agents whose heading dev to the closest lane is >= heading_tolerance degrees
+    # - excessively large vehicles
+    agents = pre_env['agent_states']            
+    agent_types = np.argmax(pre_env['agent_types'], axis=1)
+    num_agents = pre_env['num_agents']
+    agents_to_remove = []
+    agent_ids_to_process = np.arange(num_agents)[1:]
+    while len(agent_ids_to_process) > 0:
+        focal_agent_id = agent_ids_to_process[:1]
+        
+        if len(agent_ids_to_process) > 1:
+            other_agent_ids = np.append(
+                agent_ids_to_process[1:], 
+                [0]
+            )
+            focal_agent = copy.deepcopy(agents[focal_agent_id])
+            other_agents = copy.deepcopy(agents[other_agent_ids])
+            # replace sin(heading) with heading for collision checking
+            focal_agent[:, 4] = np.arctan2(
+                        agents[focal_agent_id, 4], 
+                        agents[focal_agent_id, 3]
+                    )
+            other_agents[:, 4] = np.arctan2(
+                        agents[other_agent_ids, 4], 
+                        agents[other_agent_ids, 3]
+                    )
+            collisions = batched_collision_checker(
+                focal_agent[:, None, [0,1,4,5,6]], 
+                other_agents[:, None, [0,1,4,5,6]]
+            )[:, 0].astype(bool)
+
+            if np.any(collisions):
+                agents_to_remove.append(focal_agent_id[0])
+        
+        if agent_types[focal_agent_id[0]] == 0:
+            offroad = np.linalg.norm(
+                agents[focal_agent_id, :2] - 
+                pre_env['road_points'].reshape(-1, 2), axis=-1
+            ).min() > offroad_threshold
+            
+            if not offroad:
+                aligned = False
+                lanes_near_agent_mask = np.linalg.norm(
+                    pre_env['road_points'] - agents[focal_agent_id, None, :2]
+                    , axis=-1
+                ).min(-1) <= offroad_threshold
+                lanes_near_agent = pre_env['road_points'][lanes_near_agent_mask]
+                for lane in lanes_near_agent:
+                    closest_idx = np.argmin(
+                        np.linalg.norm(
+                            lane - agents[focal_agent_id, :2]
+                            , axis=-1
+                        )
+                    )
+                    if closest_idx == 19:
+                        closest_idx -= 1
+                    
+                    next_idx = closest_idx + 1
+                    diff = lane[next_idx] - lane[closest_idx]
+                    lane_heading = np.arctan2(diff[1], diff[0])
+                    agent_heading = np.arctan2(
+                        agents[focal_agent_id, 4], 
+                        agents[focal_agent_id, 3]
+                    )
+                    heading_diff = np.abs(
+                        normalize_angle(agent_heading - lane_heading))[0]
+                    if heading_diff < heading_tolerance:
+                        aligned = True
+                        break
+            
+            # remove excessively large vehicles
+            too_big = agents[focal_agent_id[0], 5] > length_tolerance
+            if offroad or too_big or not aligned:
+                agents_to_remove.append(focal_agent_id[0])
+        
+        agent_ids_to_process = agent_ids_to_process[1:]
+
+    if len(agents_to_remove) > 0:
+        valid_agent_ids = np.setdiff1d(
+            np.arange(num_agents), 
+            agents_to_remove
+        )
+        pre_env['agent_states'] = agents[valid_agent_ids]
+        pre_env['agent_types'] = agent_types[valid_agent_ids]
+    else:
+        pre_env['agent_types'] = agent_types
+
+    # remove static objects for nuPlan
+    if dataset == 'nuplan':
+        dynamic_agent_mask = pre_env['agent_types'] < 2
+        pre_env['agent_states'] = pre_env['agent_states'][dynamic_agent_mask]
+        pre_env['agent_types'] = pre_env['agent_types'][dynamic_agent_mask]
+    
+    # reformat agents
+    agents = np.zeros((pre_env['agent_states'].shape[0], 8))
+    agents[:, :2] = pre_env['agent_states'][:, :2]
+    agents[:, 2] = (pre_env['agent_states'][:, 2] 
+                    * pre_env['agent_states'][:, 3])
+    agents[:, 3] = (pre_env['agent_states'][:, 2] 
+                    * pre_env['agent_states'][:, 4])
+    agents[:, 4] = np.arctan2(pre_env['agent_states'][:, 4], 
+                                pre_env['agent_states'][:, 3])
+    agents[:, 5:7] = pre_env['agent_states'][:, 5:]
+    agents[:, 7] = 1
+    agents = agents[:, None]
+    agent_types = np.eye(5)[pre_env['agent_types']]
+    # ego is last agent in simulator
+    post_env['agents'] = np.roll(agents, -1, axis=0)
+    # unset, vehicle, pedestrian, cyclist, other
+    post_env['agent_types'] = np.roll(
+        agent_types, 
+        -1, 
+        axis=0)[:, [4,0,1,2,3]]
+    post_env['num_agents'] = len(post_env['agents'])
+        
+    # apply lane graph compression and resample lanes
+    num_lanes = pre_env['num_lanes']
+    l2l_edge_index = get_edge_index_complete_graph(num_lanes)
+    lane_conn = pre_env['road_connection_types']
+    # pred -> succ
+    # This seems unintuitive; for intuition, see here: utils/metrics_helpers.py#L357
+    is_succ = lane_conn[:, LANE_CONNECTION_TYPES['pred']] == 1
+    edges_succ = l2l_edge_index[:, is_succ].transpose(1, 0)
+
+    centerlines = pre_env['road_points']
+    # for pre/succ connections
+    num_centerlines = len(centerlines)
+    A_succ = np.zeros((num_centerlines, num_centerlines))
+    for edge in edges_succ:
+        A_succ[edge[0].item(), edge[1].item()] = 1
+
+    G_succ = nx.DiGraph(incoming_graph_data=A_succ)
+    compact_G, compact_centerlines = get_compact_lane_graph(
+        G_succ, centerlines, num_points_per_lane=num_points_per_lane)
+    
+    route_lane_indices, valid = get_route_lane_indices(
+        copy.deepcopy(compact_centerlines),
+        copy.deepcopy(compact_G),
+        copy.deepcopy(post_env['route'])
+    )
+    if valid:
+        post_env['route_lane_indices'] = route_lane_indices
+    else:
+        post_env['route_lane_indices'] = None
+    post_env['lanes'] = compact_centerlines 
+    post_env['lane_graph'] = compact_G
+    post_env['num_lanes'] = len(post_env['lanes'])
+
+    return post_env
+
+
+def get_route_lane_indices(
+        lanes, 
+        G, 
+        route, 
+        upsample_points=10000,
+        dist_threshold=3.25):
+    """ Get the lane indices that correspond to the route.
+    Invalidate scenarios where the best-fitting path deviates 
+    from the route. This can arise due to disconnected lane graphs.
+    """
+    valid = True
+    lanes = resample_lanes(
+        lanes, 
+        num_points=upsample_points
+    )
+    start_lane_id = np.argmin(
+        np.linalg.norm(
+            lanes, 
+            axis=-1
+        ).min(1))
+    route_end = route[-1]
+    end_lane_id = np.argmin(
+        np.linalg.norm(
+            lanes - route_end,
+            axis=-1
+        ).min(1)
+    )
+
+    if start_lane_id == end_lane_id:
+        paths = [[start_lane_id]]
+    else:
+        paths = list(nx.all_simple_paths(G, start_lane_id, end_lane_id))
+        if len(paths) == 0:
+            valid = False
+            return None, valid
+
+    start_lane_point = np.linalg.norm(
+        lanes[start_lane_id],
+        axis=-1
+    ).argmin()
+    end_lane_point = np.linalg.norm(
+        lanes[end_lane_id] - route_end,
+        axis=-1
+    ).argmin()
+
+    # find path that best fits the route
+    best_path = None
+    best_path_error = float('inf')
+    best_path_points_on_route = None
+    route_upsampled = resample_polyline(
+        np.concatenate(
+            [lanes[start_lane_id, start_lane_point][None, ...],
+             route],
+             axis=0),
+        num_points=upsample_points
+    )
+    for path in paths:
+        path_points_on_route = []
+        for i, lane_id in enumerate(path):
+            lane = lanes[lane_id]
+            if i == 0 and i == len(path) - 1:
+                # single-lane path: use segment between start and end points
+                lane_points = lane[start_lane_point:end_lane_point+1]
+            elif i == 0:
+                lane_points = lane[start_lane_point:]
+            elif i == len(path) - 1:
+                lane_points = lane[:end_lane_point]
+            else:
+                lane_points = lane
+            
+            path_points_on_route.append(lane_points)
+        path_points_on_route = np.concatenate(
+            path_points_on_route, 
+            axis=0
+        )
+        path_points_on_route = resample_polyline(
+            path_points_on_route, 
+            num_points=upsample_points
+        )
+        # compute error to route
+        path_error = np.linalg.norm(
+            path_points_on_route - route_upsampled, 
+            axis=-1
+        ).max()
+        if path_error < best_path_error:
+            best_path_error = path_error
+            best_path = path   
+            best_path_points_on_route = path_points_on_route
+    
+    if best_path_error > dist_threshold:
+        valid = False
+    return best_path, valid
 
 
 def clean_up_scene(data, dataset, mode='initial_scene', endpoint_threshold=1, offroad_threshold=2.5):
@@ -151,8 +435,17 @@ def clean_up_scene(data, dataset, mode='initial_scene', endpoint_threshold=1, of
             if mode == 'initial_scene':
                 np.append(other_agent_ids, [0])
             
-            focal_agent = agents[focal_agent_id]
-            other_agents = agents[other_agent_ids]
+            focal_agent = copy.deepcopy(agents[focal_agent_id])
+            other_agents = copy.deepcopy(agents[other_agent_ids])
+            # replace sin(heading) with heading for collision checking
+            focal_agent[:, 4] = np.arctan2(
+                        agents[focal_agent_id, 4], 
+                        agents[focal_agent_id, 3]
+                    )
+            other_agents[:, 4] = np.arctan2(
+                        agents[other_agent_ids, 4], 
+                        agents[other_agent_ids, 3]
+                    )
             collisions = batched_collision_checker(
                 focal_agent[:, None, [0,1,4,5,6]], 
                 other_agents[:, None, [0,1,4,5,6]])[:, 0].astype(bool)
@@ -292,21 +585,6 @@ def check_scene_validity_inpainting(data, dataset, heading_tolerance=np.pi/3):
             passed_filter3 = False
     
     return passed_filter1, passed_filter2, passed_filter3
-
-
-def estimate_heading(positions):
-    """ Compute heading at the start and end of a sequence of positions."""
-    # positions: numpy array of shape (20, 2) representing (x, y) positions
-
-    # Estimate heading for the first point
-    diff_first = positions[1] - positions[0]
-    heading_first = np.arctan2(diff_first[1], diff_first[0])
-
-    # Estimate heading for the last point
-    diff_last = positions[-1] - positions[-2]
-    heading_last = np.arctan2(diff_last[1], diff_last[0])
-
-    return heading_first, heading_last
 
 
 def sample_route(d, dataset, heading_tolerance=np.pi/3, num_points_in_route=1000):

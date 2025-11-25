@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from cfgs.config import CONFIG_PATH
 from datasets.waymo.dataset_ctrl_sim import CtRLSimDataset
-from utils.k_disks_helpers import compute_k_disks
+from utils.k_disks_helpers import compute_k_disks_vocabulary
 from utils.viz import plot_k_disks_vocabulary
 
 SEED = 42
@@ -40,7 +40,7 @@ def main(cfg):
             break 
     state_transitions_all = np.concatenate(state_transitions_all, axis=0)
     
-    V = compute_k_disks(
+    V = compute_k_disks_vocabulary(
         state_transitions_all, 
         vocab_size=cfg.vocab_size, 
         l=1, 

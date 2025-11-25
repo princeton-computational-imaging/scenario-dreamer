@@ -804,3 +804,58 @@ def compute_agent_metrics(samples, gt_samples):
         'speed_jsd': speed_jsd,
         'collision_rate': collision_rate * 100
     }
+
+
+def compute_sim_agent_jsd_metrics(
+        metrics_dict,
+        gt_lin_speeds,
+        sim_lin_speeds,
+        gt_ang_speeds,
+        sim_ang_speeds,
+        gt_accels,
+        sim_accels,
+        gt_dist_near_veh,
+        sim_dist_near_veh):
+    """ Computes the JSD sim agent metrics computed on the simulated and ground truth data."""
+    
+    # lin speed jsd 
+    lin_speeds_gt = np.concatenate(gt_lin_speeds, axis=0)
+    lin_speeds_sim = np.concatenate(sim_lin_speeds, axis=0)
+    lin_speeds_gt = np.clip(lin_speeds_gt, 0, 30)
+    lin_speeds_sim = np.clip(lin_speeds_sim, 0, 30)
+    bin_edges = np.arange(201) * 0.5 * (100 / 30)
+    P_lin_speeds_sim = np.histogram(lin_speeds_sim, bins=bin_edges)[0] / len(lin_speeds_sim)
+    Q_lin_speeds_sim = np.histogram(lin_speeds_gt, bins=bin_edges)[0] / len(lin_speeds_gt)
+    metrics_dict['lin_speed_jsd'] = distance.jensenshannon(P_lin_speeds_sim, Q_lin_speeds_sim) ** 2
+    
+    # ang speed jsd
+    ang_speeds_gt = np.concatenate(gt_ang_speeds, axis=0)
+    ang_speeds_sim = np.concatenate(sim_ang_speeds, axis=0)
+    ang_speeds_gt = np.clip(ang_speeds_gt, -50, 50)
+    ang_speeds_sim = np.clip(ang_speeds_sim, -50, 50)
+    bin_edges = np.arange(201) * 0.5 - 50 
+    P_ang_speeds_sim = np.histogram(ang_speeds_sim, bins=bin_edges)[0] / len(ang_speeds_sim)
+    Q_ang_speeds_sim = np.histogram(ang_speeds_gt, bins=bin_edges)[0] / len(ang_speeds_gt)
+    metrics_dict['ang_speed_jsd'] = distance.jensenshannon(P_ang_speeds_sim, Q_ang_speeds_sim) ** 2
+
+    # accel jsd
+    accels_gt = np.concatenate(gt_accels, axis=0)
+    accels_sim = np.concatenate(sim_accels, axis=0)
+    accels_gt = np.clip(accels_gt, -10, 10)
+    accels_sim = np.clip(accels_sim, -10, 10)
+    bin_edges = np.arange(201) * 0.1 - 10
+    P_accels_sim = np.histogram(accels_sim, bins=bin_edges)[0] / len(accels_sim)
+    Q_accels_sim = np.histogram(accels_gt, bins=bin_edges)[0] / len(accels_gt)
+    metrics_dict['accel_jsd'] = distance.jensenshannon(P_accels_sim, Q_accels_sim) ** 2
+
+    # nearest dist jsd
+    nearest_dists_gt = np.concatenate(gt_dist_near_veh, axis=0)
+    nearest_dists_sim = np.concatenate(sim_dist_near_veh, axis=0)
+    nearest_dists_gt = np.clip(nearest_dists_gt, 0, 40)
+    nearest_dists_sim = np.clip(nearest_dists_sim, 0, 40)
+    bin_edges = np.arange(201) * 0.5 * (100 / 40)
+    P_nearest_dists_sim = np.histogram(nearest_dists_sim, bins=bin_edges)[0] / len(nearest_dists_sim)
+    Q_nearest_dists_sim = np.histogram(nearest_dists_gt, bins=bin_edges)[0] / len(nearest_dists_gt)
+    metrics_dict['nearest_dist_jsd'] = distance.jensenshannon(P_nearest_dists_sim, Q_nearest_dists_sim) ** 2
+
+    return metrics_dict

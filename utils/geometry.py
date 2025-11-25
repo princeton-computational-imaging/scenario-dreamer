@@ -76,13 +76,14 @@ def normalize_lanes_and_agents(agents, lanes, normalize_dict, dataset):
     return np.squeeze(agents_normalized, axis=1), lanes_normalized
 
 
-def normalize_agents(agent_states, normalize_dict):
-    """ Normalize agent states to new coordinate frame. Used in CtRL-Sim data processing."""
+def normalize_agents(agent_states, normalize_dict, offset=np.pi/2):
+    """ Normalize agent states to new coordinate frame. 
+    Used in CtRL-Sim data processing."""
     yaw = normalize_dict['yaw']
     translation = normalize_dict['center']
     
     # add pi/2 so that ego points north (as consistent with scenario dreamer output)
-    angle_of_rotation = (np.pi / 2) + np.sign(-yaw) * np.abs(yaw)
+    angle_of_rotation = offset + np.sign(-yaw) * np.abs(yaw)
     translation = translation[np.newaxis, np.newaxis, :]
 
     new_agent_states = np.zeros_like(agent_states)
@@ -96,3 +97,19 @@ def normalize_agents(agent_states, normalize_dict):
     new_agent_states[:, :, 5:] = agent_states[:, :, 5:]
     
     return new_agent_states
+
+
+def normalize_lanes(lanes, normalize_dict, offset=np.pi/2):
+    """ Normalize lane coordinates to new coordinate frame."""
+    yaw = normalize_dict['yaw']
+    translation = normalize_dict['center']
+    
+    angle_of_rotation = offset + np.sign(-yaw) * np.abs(yaw)
+    translation = translation[np.newaxis, np.newaxis, :]
+    
+    lanes[:, :, :2] = apply_se2_transform(coordinates=lanes[:, :, :2],
+                                translation=translation,
+                                yaw=angle_of_rotation)
+    lanes[:, :, 5] = normalize_angle(lanes[:, :, 5] + angle_of_rotation.reshape(1, 1))
+    
+    return lanes

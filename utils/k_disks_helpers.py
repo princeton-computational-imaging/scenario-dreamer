@@ -2,7 +2,8 @@ import numpy as np
 from utils.geometry import normalize_angle
 from tqdm import tqdm
 
-def compute_k_disks(state_transitions, vocab_size, l, w, eps):
+def compute_k_disks_vocabulary(state_transitions, vocab_size, l, w, eps):
+    """ Computes k-disks vocabulary from buffer of state transitions."""
     box_coords = np.array([
         [-l/2, -w/2],
         [-l/2, w/2],
@@ -156,3 +157,65 @@ def get_global_next_state(global_states, local_transitions):
     next_global_states = np.stack([x_new, y_new, heading_new], axis=-1)
 
     return next_global_states
+
+
+def forward_k_disks(states, actions, vocab, delta_t, exists):
+    """ Computes next states given current states and k-disks actions."""
+    # current_state: [A, 3]
+    # state_transitions: [A, 3]
+    # returns: next state in global frame: [A, 3]
+    current_state = states[:, [0,1,4]]
+    next_actions = vocab[actions.astype(int)]
+    next_state_pos_heading = get_global_next_state(current_state, next_actions)
+    next_v = (next_state_pos_heading[:, :2] - current_state[:, :2]) / delta_t
+    next_exists = exists
+    next_state = np.array([next_state_pos_heading[:, 0], 
+                           next_state_pos_heading[:, 1],
+                           next_v[:, 0],
+                           next_v[:, 1],
+                           next_state_pos_heading[:, 2],
+                           states[:, 5],
+                           states[:, 6],
+                           next_exists]).transpose(1, 0)
+    
+    return next_state
+
+
+def inverse_k_disks(states, next_states, vocab):
+    """ Computes the k-disks action given current and next state."""
+    # 5:6 --> length, 6:7 --> width
+    corner_0_x = - 1 * states[5:6] / 2
+    corner_0_y = - 1 * states[6:7] / 2
+    corner_1_x = - 1 * states[5:6] / 2
+    corner_1_y = states[6:7] / 2
+    corner_2_x = states[5:6] / 2
+    corner_2_y = states[6:7] / 2
+    corner_3_x = states[5:6] / 2
+    corner_3_y = -1 * states[6:7] / 2
+
+    box_corners = np.array([
+        [corner_0_x, corner_0_y],
+        [corner_1_x, corner_1_y],
+        [corner_2_x, corner_2_y],
+        [corner_3_x, corner_3_y]
+    ]).transpose(2, 0, 1)
+
+    # box_corners: [A, 4, 2]
+    # V: [384, 3]
+    # returns: transformed_box_corners: [A, 384, 4, 2]
+    box_corners_vocab = transform_box_corners_from_vocab(box_corners, vocab)
+
+    current_state = states[None, [0,1,4]]
+    gt_next_state = next_states[None, [0,1,4]]
+    local_state_transitions = get_local_state_transition(current_state=current_state, next_state=gt_next_state)
+
+    # box_corners: [A, 4, 2]
+    # local_state_transitions: [A, 3]
+    # returns: transformed_box_corners: [A, 4, 2]
+    box_corners_local_state = transform_box_corners_from_local_state(box_corners, local_state_transitions)
+
+    err = np.linalg.norm(box_corners_vocab - box_corners_local_state[:, None, :, :], axis=-1).mean(2)
+    action = np.argmin(err, axis=1)
+
+    # [1,]
+    return action

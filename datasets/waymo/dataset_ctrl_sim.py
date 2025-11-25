@@ -317,14 +317,23 @@ class CtRLSimDataset(Dataset):
             rtg_mask, 
             moving_agent_mask, 
             origin_agent_idx, 
-            timestep):
+            timestep,
+            active_agents=None):
         """ Select the closest max_num_agents to the origin agent at the given timestep."""
         origin_states = agent_states[origin_agent_idx, timestep, :2].reshape(1, -1)
         dist_to_origin = np.linalg.norm(origin_states - agent_states[:, timestep, :2], axis=-1)
         
         # a valid agent is one that exists in the FOV at some point during the context buffer
-        exists_during_buffer = agent_mask.sum(-1) > 0
-        valid_agents = np.where(exists_during_buffer)[0]
+        if active_agents is None:
+            exists_during_buffer = agent_mask.sum(-1) > 0
+            valid_agents = np.where(exists_during_buffer)[0]
+        # used during simulation
+        else:
+            valid_agents = np.concatenate(
+                [np.array([0]).astype(int), # ego always valid
+                 active_agents]
+                 , axis=0
+            )
 
         final_agent_states = np.zeros((self.cfg.max_num_agents, *agent_states[0].shape))
         final_agent_types = -np.ones((self.cfg.max_num_agents, *agent_types[0].shape))
@@ -334,8 +343,13 @@ class CtRLSimDataset(Dataset):
         final_rtg_mask = np.zeros((self.cfg.max_num_agents, *rtg_mask[0].shape))
         final_moving_agent_mask = np.zeros(self.cfg.max_num_agents)
 
-        closest_ag_ids = np.argsort(dist_to_origin)[:self.cfg.max_num_agents]
-        closest_ag_ids = np.intersect1d(closest_ag_ids, valid_agents)
+        # TODO: this is awkward. Fix in later release.
+        if active_agents is None:
+            closest_ag_ids = np.argsort(dist_to_origin)[:self.cfg.max_num_agents]
+            closest_ag_ids = np.intersect1d(closest_ag_ids, valid_agents)
+        else:
+            closest_ag_ids = np.argsort(dist_to_origin)
+            closest_ag_ids = np.intersect1d(closest_ag_ids, valid_agents)[:self.cfg.max_num_agents]
         # shuffle ids so it is not ordered by distance
         if self.split_name == 'train':
             np.random.shuffle(closest_ag_ids)
@@ -356,7 +370,8 @@ class CtRLSimDataset(Dataset):
                 final_rtgs, 
                 final_rtg_mask, 
                 final_moving_agent_mask, 
-                new_origin_agent_idx)
+                new_origin_agent_idx,
+                closest_ag_ids)
 
     
     def get_normalized_lanes_in_fov(self, lanes, normalize_dict):
@@ -489,7 +504,7 @@ class CtRLSimDataset(Dataset):
             states, actions = self.rollout_k_disks(copy.deepcopy(states))
             num_agents = len(states)
 
-            veh_ego_collision_rewards = self.get_ego_collision_rewards(states)
+            veh_ego_collision_reward = self.get_ego_collision_rewards(states)
             last_valid_positions = self.get_last_valid_positions(states)
 
             # save preprocessed data for accelerated training
@@ -500,7 +515,7 @@ class CtRLSimDataset(Dataset):
             to_pickle['states'] = states
             to_pickle['actions'] = actions
             to_pickle['agent_types'] = agent_types
-            to_pickle['veh_ego_collision_rewards'] = veh_ego_collision_rewards
+            to_pickle['veh_ego_collision_rewards'] = veh_ego_collision_reward
             to_pickle['last_valid_positions'] = last_valid_positions
 
             raw_file_name = os.path.splitext(os.path.basename(self.files[idx]))[0]
@@ -576,7 +591,8 @@ class CtRLSimDataset(Dataset):
          rtg_buffer, 
          rtg_mask_buffer, 
          moving_agent_mask, 
-         new_origin_agent_idx) = self.select_closest_max_num_agents(
+         new_origin_agent_idx,
+         _) = self.select_closest_max_num_agents(
              state_buffer, 
              agent_type_buffer, 
              agent_mask_buffer, 

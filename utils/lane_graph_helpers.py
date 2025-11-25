@@ -210,12 +210,44 @@ def resample_polyline(points, num_points=20):
     return new_points
 
 
+def resample_polyline_every(polyline, every=1.5):
+    """ Resample a polyline to have points spaced every `every` m along its arc-length."""
+    # Calculate the distance between each consecutive pair of points
+    distances = np.sqrt(((np.diff(polyline, axis=0)) ** 2).sum(axis=1))
+    
+    # Calculate cumulative distance along the polyline
+    cumulative_distances = np.insert(np.cumsum(distances), 0, 0)
+    
+    # Determine the new distances at which to sample points
+    target_distances = np.arange(0, cumulative_distances[-1], every)
+    
+    # Interpolate the x and y coordinates at the target distances
+    resampled_x = np.interp(target_distances, cumulative_distances, polyline[:, 0])
+    resampled_y = np.interp(target_distances, cumulative_distances, polyline[:, 1])
+    
+    # Stack the x and y coordinates to form the resampled polyline
+    resampled_polyline = np.vstack((resampled_x, resampled_y)).T
+    
+    return resampled_polyline
+
+
 def resample_lanes(lanes, num_points):
     """Resample a list of lanes (each lane is a polyline) to have `num_points` equally spaced points along each lane's arc-length."""
     lanes_resampled = []
     for lane in lanes:
         lanes_resampled.append(resample_polyline(lane, num_points=num_points))
 
+    return np.array(lanes_resampled)
+
+
+def resample_lanes_with_mask(lanes, lanes_mask, num_points):
+    """Resample a list of lanes (each lane is a polyline) to have `num_points` 
+    equally spaced points along each lane's arc-length, using a mask to indicate valid lanes."""
+    lanes_resampled = []
+    for lane, mask in zip(lanes, lanes_mask):
+        if mask.sum():
+            lanes_resampled.append(resample_polyline(lane[mask], num_points))
+    
     return np.array(lanes_resampled)
 
 
@@ -235,3 +267,18 @@ def adjacency_matrix_to_adjacency_list(lane_graph_adj):
         suc_pairs[edge[0]].append(edge[1])
     
     return pre_pairs, suc_pairs
+
+
+def estimate_heading(positions):
+    """ Compute heading at the start and end of a sequence of positions."""
+    # positions: numpy array of shape (20, 2) representing (x, y) positions
+
+    # Estimate heading for the first point
+    diff_first = positions[1] - positions[0]
+    heading_first = np.arctan2(diff_first[1], diff_first[0])
+
+    # Estimate heading for the last point
+    diff_last = positions[-1] - positions[-2]
+    heading_last = np.arctan2(diff_last[1], diff_last[0])
+
+    return heading_first, heading_last

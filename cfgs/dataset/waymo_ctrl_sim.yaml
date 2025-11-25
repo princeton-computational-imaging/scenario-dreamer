@@ -4,7 +4,7 @@ dataset_path: ${dataset_root}/scenario_dreamer_waymo # path to extracted waymo d
 train_context_length: 32 # CtRL-Sim context length (in timesteps)
 max_num_lanes: 100 # maximum number of lanes in context
 max_num_agents: 24 # maximum number of modeled agents
-lane_fov: 125 # lane graph field of view (in meters)
+lane_fov: 300 # lane graph field of view (in meters)
 fov: 80 # agent field of view (in meters)
 num_points_per_lane: 50 # number of points per lane segment
 upsample_lane_num_points: 1000 # number of points per lane segment after upsampling

@@ -1,0 +1,19 @@
+seed: 0 # random seed for reproducibility
+mode: scenario_dreamer # waymo_ctrl_sim and waymo_log_replay to be supported in the future
+dataset_path: ${project_root}/metadata/simulation_environment_datasets/scenario_dreamer_waymo_200m # path to set of simulation environments
+policy: idm # or rl (policy being evaluated. Currently only idm is supported)
+visualize: False # create videos of the simulation?
+lightweight: False # lightweight visualization (runs faster, less dpi and lower frame rate)
+movie_path: ${project_root}/movies # path to save visualization movies
+verbose: True # report metrics after each simulation?
+steps: 400 # number of steps in each simulation
+dt: 0.1 # time delta between simulation steps
+simulate_vehicles_only: False # whether to simulate only vehicles (default is to simulate all agents (vehicles + pedestrians + cyclists))
+behaviour_model:
+  run_name: ctrl_sim_waymo_1M_steps # run name of the behaviour model to load
+  model_path: ${scratch_root}/checkpoints/${sim.behaviour_model.run_name}/last.ckpt # path to the behaviour model checkpoint
+  tilt: 10 # exponential tilting value for return sampling
+  action_temperature: 1.0 # action sampling temperature
+  use_rtg: True # whether behaviour model conditions on return-to-go
+  predict_rtgs: True # whether behaviour model predicts return-to-go
+  compute_metrics: False # compute metrics for behaviour model?

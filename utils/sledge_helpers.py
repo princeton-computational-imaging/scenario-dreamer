@@ -1,8 +1,6 @@
 import numpy as np
 from scipy.interpolate import interp1d
-
-def normalize_angle(angle):
-    return np.arctan2(np.sin(angle), np.cos(angle))
+from utils.geometry import normalize_angle
 
 def calculate_progress(path):
     """
