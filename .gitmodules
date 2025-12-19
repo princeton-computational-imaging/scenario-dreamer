@@ -1,0 +1,3 @@
+[submodule "gpudrive"]
+	path = gpudrive
+	url = https://github.com/RLuke22/gpudrive-scenario-dreamer.git
