@@ -38,8 +38,8 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 - [x] [11/05/2025] Train CtRL-Sim behaviour model on Waymo
 - [x] [11/25/2025] Release of 1M-step pre-trained CtRL-Sim checkpoint
 - [x] [11/25/2025] Evaluate IDM policy in Scenario Dreamer environments
-- [ ] [ETA: 12/23/2025] Train Scenario-Dreamer compatible agents in GPUDrive
-- [ ] [ETA: 12/23/2025] Evaluate GPU-trained RL policy in Scenario Dreamer environments
+- [ ] [ETA: 12/30/2025] Train Scenario-Dreamer compatible agents in GPUDrive
+- [ ] [ETA: 12/30/2025] Evaluate GPU-trained RL policy in Scenario Dreamer environments
 
 ## Table of Contents
 1. [Setup](#setup)
