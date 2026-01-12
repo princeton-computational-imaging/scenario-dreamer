@@ -1,0 +1,13 @@
+defaults:
+- base
+
+mode: scenario_dreamer # [waymo_ctrl_sim, waymo_log_replay, scenario_dreamer]
+dataset_path: ${project_root}/metadata/simulation_environment_datasets/scenario_dreamer_waymo_100m_pickles # path to set of simulation environments
+json_path: ${project_root}/metadata/simulation_environment_datasets/scenario_dreamer_waymo_100m_jsons # path to the json files
+steps: 200 # number of steps in each simulation
+simulate_vehicles_only: True # whether to simulate only vehicles (default is to simulate all agents (vehicles + pedestrians + cyclists))
+agent_scale: 0.7 # agent scale for collision checking (GPUDrive uses 0.7)
+policy: rl # or idm (policy being evaluated)
+behaviour_model:
+  tilt: -10
+  action_temperature: 1.0

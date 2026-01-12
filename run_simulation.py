@@ -1,7 +1,7 @@
 import hydra
 from simulator import Simulator
 from policies.idm_policy import IDMPolicy
-# from policies.rl_policy import RLPolicy # TODO: implement RLPolicy
+from policies.rl_policy import RLPolicy
 from cfgs.config import CONFIG_PATH
 
 import numpy as np
@@ -105,8 +105,7 @@ def main(cfg):
     env = Simulator(cfg)
     
     if cfg.sim.policy == 'rl':
-        pass # TODO: Integrate RLPolicy
-        # policy = RLPolicy(cfg, env)
+        policy = RLPolicy(cfg.sim)
     else:
         policy = IDMPolicy(cfg, env)
     

@@ -14,7 +14,11 @@ def main(cfg):
     pre_path = cfg.postprocess_sim_envs.pre_path
     post_path = cfg.postprocess_sim_envs.post_path
     route_length = cfg.postprocess_sim_envs.route_length
+    max_num_envs = cfg.postprocess_sim_envs.max_num_envs
 
+    if max_num_envs == -1:
+        max_num_envs = len(os.listdir(pre_path))
+    
     os.makedirs(post_path, exist_ok=True)
 
     num_sim_envs = 0
@@ -39,6 +43,9 @@ def main(cfg):
         with open(os.path.join(post_path, filename), "wb") as f:
             pickle.dump(sim_env_filtered, f)
         num_sim_envs += 1
+
+        if num_sim_envs >= max_num_envs:
+            break
 
     print(f"Post-processed {num_sim_envs} simulation environments saved to {post_path}")
 

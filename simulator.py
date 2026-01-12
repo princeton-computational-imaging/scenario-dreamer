@@ -12,6 +12,7 @@ from utils.gpudrive_helpers import (
     get_ego_state,
     get_partner_obs,
     get_map_obs,
+    get_route_obs,
     from_json_Map,
     ForwardKinematics
 )
@@ -42,8 +43,8 @@ class Simulator:
     This makes it easier to integrate with the CtRL-Sim behaviour model.
     Three modes are supported:
     - scenario_dreamer: Scenario Dreamer simulation environments with reactive CtRL-Sim agents
-    - waymo_ctrl_sim: Waymo Open Dataset simulation environments with reactive CtRL-Sim agents (TODO)
-    - waymo_log_replay: Waymo Open Dataset simulation environments with log-replay agents. (TODO)
+    - waymo_ctrl_sim: Waymo Open Dataset simulation environments with reactive CtRL-Sim agents
+    - waymo_log_replay: Waymo Open Dataset simulation environments with log-replay agents.
     """
     def __init__(self, cfg):
         """ Initialize simulator."""
@@ -52,6 +53,7 @@ class Simulator:
         self.steps = self.cfg.sim.steps 
         self.dt = self.cfg.sim.dt 
         self.dataset_path = self.cfg.sim.dataset_path
+        self.json_path = self.cfg.sim.json_path
         self.test_files = [os.path.join(self.dataset_path, file) 
                            for file in os.listdir(self.dataset_path)]
         self.num_test_scenarios = len(self.test_files)
@@ -80,21 +82,24 @@ class Simulator:
             scenario_dict = pickle.load(f)
 
         if self.cfg.sim.policy == 'rl':
-            pass # TODO: integrate RL policy
-            # # load additional map info from gpudrive json
-            # if 'data_files/scenario_dreamer' in self.cfg.sim.json_path:
-            #     json_filename = f"{self.test_files[i].split('/')[-1][:-4]}.json"
-            # else:
-            #     json_filename = f"{self.test_files[i].split('/')[-1][11:-4]}.json"
-            # json_path = os.path.join(self.json_path, json_filename)
-            # with open(json_path, 'r') as f:
-            #     gpudrive_dict = json.load(f)
-            # # convert map to GPUDrive format for compatibility 
-            # # with RL planners trained in GPUDrive
-            # gpudrive_dict = from_json_Map(gpudrive_dict, polylineReductionThreshold=0.1)
+            # load additional map info from gpudrive json
+            if self.cfg.sim.mode == 'scenario_dreamer':
+                json_filename = f"{self.test_files[i].split('/')[-1][:-4]}.json"
+            else:
+                json_filename = f"{self.test_files[i].split('/')[-1][11:-4]}.json"
+            json_path = os.path.join(self.json_path, json_filename)
+            with open(json_path, 'r') as f:
+                gpudrive_dict = json.load(f)
+            
+            # convert map to GPUDrive format for compatibility 
+            # with RL planners trained in GPUDrive
+            gpudrive_dict = from_json_Map(
+                gpudrive_dict, 
+                polylineReductionThreshold=self.cfg.sim.polyline_reduction_threshold
+            )
 
-            # scenario_dict['lanes_compressed'] = gpudrive_dict['lanes_compressed']
-            # scenario_dict['world_mean'] = gpudrive_dict['world_mean']
+            scenario_dict['lanes_compressed'] = gpudrive_dict['lanes_compressed']
+            scenario_dict['world_mean'] = gpudrive_dict['world_mean']
         return scenario_dict
     
 
@@ -178,7 +183,10 @@ class Simulator:
                         torch.nan_to_num(action, nan=0).long()
                     ).cpu()
                 action = self.action_map[action].numpy()
-                self.ego_state = self.gpudrive_kinematics_model.forward_kinematics(action[0])
+                if len(action.shape) > 1:
+                    action = action[0]
+                
+                self.ego_state = self.rl_kinematics_model.forward_kinematics(action)
             else:
                 (next_x, 
                  next_y, 
@@ -215,6 +223,7 @@ class Simulator:
         
         if self.mode == 'waymo_log_replay':
             self.data_dict['agent_next_action'] = self.scenario_dict['actions'][:, self.t - 1]
+            self.data_dict['agent_next_rtg'] = np.zeros(len(self.scenario_dict['agents']))
         else:
             self.data_dict = self.behaviour_model.step(self.data_dict)
 
@@ -289,7 +298,8 @@ class Simulator:
         )
         collided = ego_collided(
             self.ego_state, 
-            self.data_dict['agent'][-1][self.agent_active]
+            self.data_dict['agent'][-1][self.agent_active],
+            agent_scale=self.cfg.sim.agent_scale
         ) 
         off_route = ego_off_route(
             self.local_frame['center'], 
@@ -341,18 +351,27 @@ class Simulator:
         """ Get agent observation tensor for current time step."""
         if self.cfg.sim.policy == 'rl':
             ego_obs = get_ego_state(self.ego_state)
+            # there is a one-step delay in gpudrive partner observations
+            if self.t == 0:
+                partner_idx = -1
+            else:
+                partner_idx = -2
             partner_obs = get_partner_obs(
-                self.data_dict['agent'][-1], 
+                self.data_dict['agent'][partner_idx], 
                 self.ego_state, 
-                self.agent_active, 
-                self.local_frame
+                self.agent_active
             )
             map_obs = get_map_obs(
                 self.data_dict['lanes_compressed'].copy(),
-                self.ego_state,
-                self.local_frame
+                self.ego_state
             )
-            full_tensor = np.concatenate([ego_obs, partner_obs, map_obs], axis=-1)
+            # Get route observations - route points should be centered on world_mean
+            route_points = np.array(self.scenario_dict['route'], dtype=np.float32)
+            route_obs = get_route_obs(
+                route_points,
+                self.ego_state
+            )
+            full_tensor = np.concatenate([ego_obs, partner_obs, map_obs, route_obs], axis=-1, dtype=np.float32)
             obs =  torch.from_numpy(full_tensor).to('cuda:0')
         else:
             # append active mask

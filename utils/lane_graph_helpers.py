@@ -282,3 +282,9 @@ def estimate_heading(positions):
     heading_last = np.arctan2(diff_last[1], diff_last[0])
 
     return heading_first, heading_last
+
+
+def find_closest_lane(lanes, pos):    
+    """ Find the closest lane to a position."""
+    dist = np.linalg.norm(lanes - pos[None, None, :], axis=-1).min(1)
+    return np.argmin(dist)

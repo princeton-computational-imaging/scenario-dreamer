@@ -35,8 +35,15 @@ preprocess_nuplan:
 postprocess_sim_envs:
   run_name: scenario_dreamer_ldm_large_${dataset_name.name} # run name of ldm that generated the simulation environments
   pre_path: ${scratch_root}/checkpoints/${postprocess_sim_envs.run_name}/complete_sim_envs # input path for generated simulation environments
-  post_path: ${project_root}/metadata/simulation_environment_datasets/scenario_dreamer_${dataset_name.name}_${postprocess_sim_envs.route_length}m # output path for post-processed simulation environments
+  post_path: ${scratch_root}/simulation_environment_datasets/scenario_dreamer_${dataset_name.name}_${postprocess_sim_envs.route_length}m_pickles # output path for post-processed simulation environments
   route_length: 200 # route length for post-processing
+  max_num_envs: -1 # if -1, process all environments, otherwise process only the first max_num_envs environments
+
+convert_pickles_to_jsons:
+  directory: scenario_dreamer_waymo_200m # directory name of the simulation environments
+  path_to_pickles: ${scratch_root}/simulation_environment_datasets/${convert_pickles_to_jsons.directory}_pickles # path to set of simulation environments
+  path_to_jsons: ${scratch_root}/simulation_environment_datasets/${convert_pickles_to_jsons.directory}_jsons # path to the json files
+  dataset_size: 250 # number of simulation environments to convert
 
 model_name: autoencoder # or ldm or ctrl_sim
 

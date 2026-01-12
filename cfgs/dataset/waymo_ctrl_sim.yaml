@@ -18,6 +18,9 @@ max_veh_ego_distance: 10 # maximum distance of vehicles from ego to be modeled (
 min_rtg_veh: -10 # minimum reward to go (RTG) for vehicles
 max_rtg_veh: 0 # maximum reward to go (RTG) for vehicles
 rtg_discretization: 350 # number of discrete bins for reward to go (RTG) values
+create_gpudrive_dataset: False # if True, create Scenario Dreamer compatible GPUDrive dataset
+gpudrive_training_set_dir: ${dataset_root}/gpudrive_training_set_pickles # path to save Scenario Dreamer compatible GPUDrive training set
+gpudrive_evaluation_set_dir: ${dataset_root}/simulation_environment_datasets/waymo_sim_test_pickles # path to save Scenario Dreamer compatible GPUDrive evaluation set
 
 # k-disks tokenizer settings
 collect_state_transitions: False # if True, collect state transitions for k-disks tokenizer training

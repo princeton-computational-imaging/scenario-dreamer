@@ -38,8 +38,8 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 - [x] [11/05/2025] Train CtRL-Sim behaviour model on Waymo
 - [x] [11/25/2025] Release of 1M-step pre-trained CtRL-Sim checkpoint
 - [x] [11/25/2025] Evaluate IDM policy in Scenario Dreamer environments
-- [ ] [ETA: 12/12/2025] Train Scenario-Dreamer compatible agents in GPUDrive
-- [ ] [ETA: 12/12/2025] Evaluate GPU-trained RL policy in Scenario Dreamer environments
+- [x] [01/12/2026] Train Scenario-Dreamer compatible agents in GPUDrive
+- [x] [01/12/2026] Evaluate GPUDrive-trained RL policy in Waymo and Scenario Dreamer environments
 
 ## Table of Contents
 1. [Setup](#setup)
@@ -49,8 +49,9 @@ We propose Scenario Dreamer, a fully data-driven closed-loop generative simulato
 5. [Training](#training)
 6. [Evaluation](#evaluation)
 7. [Simulation](#simulation)
-8. [Citation](#citation)
-9. [Acknowledgements](#acknowledgements)
+8. [GPUDrive Integration](#gpudrive-integration)
+9. [Citation](#citation)
+10. [Acknowledgements](#acknowledgements)
 
 ## Setup <a name="setup"></a>
 
@@ -91,6 +92,8 @@ wandb login
 > - `scenario_dreamer_ctrl_sim_preprocess.tar.gz` (preprocessed dataset for CtRL-Sim training on Waymo)
 > [Download from Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing)  
 
+<details> <summary><strong>Instructions</strong></summary>
+
 Download the Waymo Open Motion Dataset (v1.1.0) into your scratch directory with the following directory structure:
 
 ```
@@ -116,6 +119,8 @@ bash scripts/preprocess_waymo_dataset.sh # preprocess data to facilitate efficie
 bash scripts/preprocess_ctrl_sim_waymo_dataset.sh # preprocess data to facilitate efficient ctrl_sim model training
 ```
 
+</details>
+
 ## NuPlan Dataset Preparation <a name="nuplan-dataset-preparation"></a>
 
 > **Quick Option:**  
@@ -124,6 +129,8 @@ bash scripts/preprocess_ctrl_sim_waymo_dataset.sh # preprocess data to facilitat
 > - `scenario_dreamer_nuplan.tar` (processed nuPlan data (required for computing metrics, but not required for training)) 
 > - `scenario_dreamer_ae_preprocess_nuplan.tar` (preprocessed dataset for Scenario Dreamer autoencoder training on nuplan)  
 > [Download from Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing)  
+
+<details> <summary><strong>Instructions</strong></summary>
 
 We use the same extracted NuPlan data as [SLEDGE](https://github.com/autonomousvision/sledge), with minor modifications tailored for **Scenario Dreamer**. Our modified fork for extracting the Nuplan data is available [here](https://github.com/RLuke22/sledge-scenario-dreamer).
 
@@ -145,6 +152,8 @@ We use the same extracted NuPlan data as [SLEDGE](https://github.com/autonomousv
    bash scripts/extract_nuplan_data.sh # create train/val/test splits and create eval set for computing metrics
    bash scripts/preprocess_nuplan_dataset.sh # preprocess data to facilitate efficient model training
    ```
+
+</details>
 
 ## Pre-Trained Checkpoints <a name="pretrained-checkpoints"></a>
 
@@ -638,6 +647,245 @@ By default, we simulate vehicles, pedestrians, and cyclists. To simulate only ve
 
 </details>
 
+## 🏎️ GPUDrive Integration <a name="gpudrive-integration"></a>
+
+<details> <summary><strong>Introduction</strong></summary>
+
+This repository supports evaluating RL agents trained in (adapted) GPUDrive on both Waymo and Scenario Dreamer environments. We forked the GPUDrive repository and adapted it so that the RL agents are trained on the Scenario Dreamer scene representation. This allows the RL agents to be evaluated in Scenario Dreamer environments. 
+
+We provide the following:
+- The fork of GPUDrive that is adapted for Scenario Dreamer compatibility. We fork the latest commit of GPUDrive as of Jan 9, 2026 (commit [aa48a43](https://github.com/Emerge-Lab/gpudrive/tree/aa48a431ed127a37610cc2176db30ec73d0c55df)) and make the necessary changes to train Scenario Dreamer-compatible RL agents.
+- Script to generate Waymo training scenarios (json files) for the Scenario Dreamer-compatible RL policy in GPUDrive.
+- Training script, configurations, and pretrained checkpoint for the Scenario Dreamer-compatible RL policy.
+- Support for evaluating the RL policy in the Scenario Dreamer simulator. This largely involves a re-implementation of the observation and dynamics functions of gpudrive (written in utils/gpudrive_helpers.py) in Python within the Scenario Dreamer simulator. We verify correctness by evaluating the same policy on the same held-out set of 250 Waymo scenes in both simulators. Performance is roughly identical, validating the re-implementation (slight differences stem from minor differences in the implementation of the collision, offroad, and goal success indicators).
+- An updated table of results with the expected performance of the RL policy when evaluated across a variety of Waymo and Scenario Dreamer environment configurations.
+
+We've improved upon the original GPUDrive integration (outlined in Section B.4 of the Scenario Dreamer Appendix) by making the following upgrades:
+- We train using improved configurations, detailed in `gpudrive/baselines/ppo/config/ppo_base_puffer.yaml`. Crucially, we set collision_weight=-0.75, off_road_weight=-0.5, goal_achieved_weight=1.0, and collision_behavior="ignore", which we found to yield superior performance compared to the original configurations outlined in Section B.4.
+- We train to 200M steps compared to 100M steps, and train over 10k unique scenarios compared to 100, thus boosting generalization.
+- We apply the length/width scaling factor of 0.7 in the Scenario Dreamer simulator to be consistent with GPUDrive.
+
+The following upgrades enables:
+- Consistent performance when evaluating the same policy over the same scenarios in both simulators.
+- Close to 90% goal success rate over a held out set of 250 Waymo scenarios, compared to 64% goal success rate prior to the upgrades (as reported in Table 4 of the Scenario Dreamer paper).
+
+We hope that these upgrades provide a better starting point for researchers hoping to evaluate RL policies in Scenario Dreamer environments.
+
+</details>
+
+<details> <summary><strong>Pre-trained Checkpoint and Expected Performance</strong></summary>
+
+The pre-trained RL policy weights can be found at `metadata/gpudrive_checkpoint/pretrained.pt`.
+
+<details> <summary><strong>Expected Performance</strong></summary>
+
+We evaluate the provided checkpoint across the same evaluation configurations as Table 4 of the Scenario Dreamer paper. The results are reported in the table below. ARL=Average Route Length (m), CR=Collision Rate, OR=Offroad Rate, SR=Success Rate:
+
+| **Simulator** | **Other Agent Beh** | **Test Env** | **ARL** | **CR**  | **OR**  | **SR**  |
+|---------------|---------------------|--------------|---------|---------|---------|---------|
+|   GPUDrive    | Log Replay          |  Waymo Test  |   55m   |   7.6   |  5.6    |  87.2   |
+|     SD        | Log Replay          |  Waymo Test  |   55m   |   7.6   |  3.6    |  88.0   |
+|     SD        | CtRL-Sim (Pos Tilt) |  Waymo Test  |   55m   |   6.8   |  3.2    |  87.6   |
+|     SD        | CtRL-Sim (Pos Tilt) |  SD (55m)    |   55m   |   7.6   |  8.4    |  82.8   |
+|     SD        | CtRL-Sim (Pos Tilt) |  SD (100m)   |   100m  |   24.0  |  12.0   |  64.0   |
+|     SD        | CtRL-Sim (Neg Tilt) |  SD (100m)   |   100m  |   27.2  |  12.4   |  60.8   |
+
+</details>
+
+</details>
+
+### Generating the GPUDrive Training JSON Files
+
+> **Quick Option:**  
+> If you'd prefer to skip generation of the gpudrive training dataset, you can directly download the 10k prepared json files:
+> Place the following files in your scratch directory and extract:
+> - `gpudrive_training_set_jsons.tar` (10k gpudrive training scenarios in Scenario Dreamer-compatible format) 
+> [Download from Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing)  
+
+<details> <summary><strong>Instructions</strong></summary>
+
+To generate the Scenario Dreamer-compatible gpudrive training set jsons (size 10k), run the following:
+```bash
+# generate pickle files (compatible with Scenario Dreamer simulator)
+python data_processing/waymo/create_gpudrive_pickles.py \
+  dataset_name=waymo \
+  preprocess_waymo.mode=val 
+# generate json files from pickle files (compatible with adapted GPUDrive simulator)
+python data_processing/waymo/convert_pickles_to_jsons.py \
+  dataset_name=waymo \
+  convert_pickles_to_jsons.directory=gpudrive_training_set
+```
+
+</details> 
+
+### Generating the Evaluation Datasets
+
+> **Quick Option:**  
+> If you'd prefer to skip generation of the evaluation datasets, you can directly download the prepared files:
+> Place the following files in your **metadata** directory and extract:
+> - `simulation_environment_datasets.tar` (250 pickles/jsons for: waymo test, scenario dreamer 55m routes, scenario dreamer 100m routes) 
+> [Download from Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing) 
+
+<details> <summary><strong>Instructions</strong></summary>
+
+To generate the evaluation datasets, run the following:
+```bash
+# Generate Waymo test simulation environments
+python data_processing/waymo/create_gpudrive_pickles.py \
+  dataset_name=waymo preprocess_waymo.mode=test
+
+# Generate Scenario Dreamer simulation environments
+python eval.py \
+  dataset_name=waymo \
+  model_name=ldm \
+  ldm.eval.mode=simulation_environments \
+  ldm.model.num_l2l_blocks=3 \
+  ldm.eval.run_name=scenario_dreamer_ldm_large_waymo \
+  ldm.eval.num_samples=500 \
+  ldm.eval.sim_envs.route_length=200 \
+  ldm.eval.sim_envs.overhead_factor=3
+
+# Generate 55m route postprocessed simulation environments
+python data_processing/postprocess_simulation_environments.py \
+  dataset_name=waymo \
+  postprocess_sim_envs.route_length=55 \
+  postprocess_sim_envs.max_num_envs=250
+
+# Generate 100m route postprocessed simulation environments
+python data_processing/postprocess_simulation_environments.py \
+  dataset_name=waymo \
+  postprocess_sim_envs.route_length=100 \
+  postprocess_sim_envs.max_num_envs=250
+
+# Convert all pickle files to jsons
+python data_processing/waymo/convert_pickles_to_jsons.py \
+  convert_pickles_to_jsons.directory=waymo_sim_test
+
+python data_processing/waymo/convert_pickles_to_jsons.py \
+  convert_pickles_to_jsons.directory=scenario_dreamer_waymo_55m
+
+python data_processing/waymo/convert_pickles_to_jsons.py \
+  convert_pickles_to_jsons.directory=scenario_dreamer_waymo_100m
+
+# move simulation environments into metadata directory
+mv $SCRATCH_ROOT/simulation_environment_datasets $PROJECT_ROOT/metadata/simulation_environment_datasets
+```
+
+</details>
+
+### Training RL Policies in GPUDrive
+
+<details> <summary><strong>1. Setup</strong></summary>
+
+**Initializing the GPUDrive Submodule**
+
+Since this repository uses GPUDrive as a git submodule, you need to initialize and update submodules after cloning:
+
+```bash
+git clone --recursive https://github.com/princeton-computational-imaging/scenario-dreamer.git
+cd scenario-dreamer
+```
+
+If you've already cloned the repository without the `--recursive` flag, you can initialize the submodule afterwards:
+
+```bash
+git submodule update --init --recursive
+```
+
+**Setting Up GPUDrive**
+
+Navigate to the `gpudrive` directory and follow the GPUDrive installation instructions in its README (`gpudrive/README.md`). This includes installing dependencies, building the simulator, and setting up the Python environment.
+
+> **Note**: Please do not create issues in the Scenario Dreamer repository for GPUDrive installation issues. If you encounter problems with GPUDrive setup, please refer to the [GPUDrive repository](https://github.com/Emerge-Lab/gpudrive) for support.
+
+**Using the Singularity Container (Optional)**
+
+For convenience, we provide a Singularity container (`gpudrive_2025.sif`) that we used to set up GPUDrive. This container can be downloaded from [Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing). The container includes a base environment with the necessary dependencies from which one could install GPUDrive. For reference, the training script we used (`gpudrive/run.sh`) is included in the repository and demonstrates how to run training using the Singularity container.
+
+**Training Configuration**
+
+Ensure that you have generated or downloaded the Scenario Dreamer-compatible gpudrive training json files and placed them in your `$SCRATCH_ROOT` directory. Modify the `data_dir` field in `gpudrive/baselines/ppo/config/ppo_base_puffer.yaml` accordingly.
+
+</details>
+
+<details> <summary><strong>2. Training an RL Policy</strong></summary>
+
+The custom configurations we used can be found at `gpudrive/baselines/ppo/config/ppo_base_puffer.yaml`. 
+
+To train an RL policy, run:
+```bash
+python baselines/ppo/ppo_pufferlib.py
+```
+
+We manually terminated the run after 500 epochs (~250M steps), but it will train by default to 1B steps.
+
+</details>
+
+<details> <summary><strong>3. What to Expect</strong></summary>
+
+- The RL policy will train on 1 GPU (we used 1 L40S GPU) to 1B steps. We terminated the run after 500 epochs (~250M steps), and used the 400-epoch checkpoint.
+- Metrics will be logged to wandb.
+- Checkpoints will be saved by default to the `gpudrive/wandb/...` directory every 400 epochs.
+- We attained a controlled_agent_sps of around 1400.
+- A screenshot of expected trend in performance during training can be found below:
+
+<details> <summary><strong>Performance</strong></summary>
+
+![GPUDrive Training Performance Trend](metadata/gpudrive_trend.png)
+
+</details> 
+
+</details>
+
+### Evaluating RL Policies in Scenario Dreamer
+
+<details> <summary><strong>1. Prerequisites</strong></summary>
+
+- Verify that you have a trained RL policy (provided pretrained rl policy weights are located at `$PROJECT_ROOT/metadata/gpudrive_checkpoint/pretrained.pt`). Set `cfgs/sim/base/rl_model_path` and `cfgs/sim/base/rl_model_name` accordingly.
+- Verify that you have a pre-trained CtRL-Sim checkpoint. Model weights can be found on the [Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing).
+- Verify that you have generated or downloaded the evaluation datasets (pickles and jsons) and stored them in `$PROJECT_ROOT/metadata/simulation_environment_datasets`. The evaluation datasets can be found on the [Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing).
+
+</details>
+
+<details> <summary><strong>2. Run Evaluation</strong></summary>
+
+To evaluate the rl policy on 250 waymo test environments with log replay agents, run:
+```bash
+python run_simulation.py sim=waymo_log_replay
+```
+
+To evaluate the rl policy on 250 waymo test environments with ctrl-sim agents, run:
+```bash
+python run_simulation.py sim=waymo_ctrl_sim
+```
+
+To evaluate the rl policy on 250 scenario dreamer (55m routes) test environments with ctrl-sim agents, run:
+```bash
+python run_simulation.py sim=scenario_dreamer_55m
+```
+
+To evaluate the rl policy on 250 scenario dreamer (100m routes) test environments with ctrl-sim agents, run:
+```bash
+python run_simulation.py sim=scenario_dreamer_100m
+```
+
+To evaluate the rl policy on 250 scenario dreamer (100m routes) test environments with adversarial ctrl-sim agents, run:
+```bash
+python run_simulation.py sim=scenario_dreamer_100m_adv
+```
+
+You can visualize the simulations by setting `sim.visualize=True`.
+
+</details>
+
+<details> <summary><strong>3. What to Expect</strong></summary>
+
+- The RL policy will be evaluated on 250 simulation environments on 1 GPU. 
+- The planner metrics (collision rate, offroad rate, goal success rate, progress) will be aggregated and reported after each simulation.
+- If you set `sim.visualize=True`, simulations will be visualized as mp4s to the `movies` directory.
+
+</details>
+
 ## Citation <a name="citation"></a>
 
 ```bibtex
@@ -658,3 +906,4 @@ Special thanks to the authors of the following open-source repositories:
 - [decision-diffuser](https://github.com/anuragajay/decision-diffuser)
 - [latent-diffusion](https://github.com/CompVis/latent-diffusion)
 - [ctrl-sim](https://github.com/montrealrobotics/ctrl-sim)
+- [gpudrive](https://github.com/Emerge-Lab/gpudrive)

@@ -5,3 +5,10 @@ __pycache__/
 lightning_logs/
 viz_*/
 movies*/
+metadata/simulation_environment_datasets/scenario_dreamer_waymo_55m_pickles/
+metadata/simulation_environment_datasets/scenario_dreamer_waymo_100m_pickles/
+metadata/simulation_environment_datasets/scenario_dreamer_waymo_55m_jsons/
+metadata/simulation_environment_datasets/scenario_dreamer_waymo_100m_jsons/
+metadata/simulation_environment_datasets/waymo_sim_test_pickles/
+metadata/simulation_environment_datasets/waymo_sim_test_jsons/
+run.sh

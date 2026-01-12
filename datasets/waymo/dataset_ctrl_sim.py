@@ -10,9 +10,11 @@ from tqdm import tqdm
 from torch_geometric.data import Dataset
 import torch.nn.functional as F
 import numpy as np
+import networkx as nx
 
 from cfgs.config import CONFIG_PATH
 from utils.lane_graph_helpers import resample_polyline, get_compact_lane_graph
+from utils.sim_helpers import get_ego_route
 from utils.data_helpers import add_batch_dim, extract_raw_waymo_data
 from utils.torch_helpers import from_numpy
 from utils.data_container import CtRLSimData
@@ -73,6 +75,21 @@ class CtRLSimDataset(Dataset):
             with open(self.cfg.k_disks_vocab_path, 'rb') as f:
                 self.V = np.array(pickle.load(f)['V'])
                 print(f"Loaded K-disks vocabulary from {self.cfg.k_disks_vocab_path}, V shape: {self.V.shape}")
+        
+        if self.cfg.create_gpudrive_dataset:
+            if self.split_name != 'test':
+                self.gpudrive_set_dir = self.cfg.gpudrive_training_set_dir
+                self.MIN_ROUTE_LENGTH = 5
+            else:
+                # filter for the nocturne-compatible scenes which were moved from val to test
+                self.files = [f for f in self.files if 'validation' in f]
+                assert len(self.files) == 6085, "Expected 6085 nocturne-compatible scenes in test set"
+                # shuffle the files to get a random sample of nocturne-compatible scenes for evaluation
+                random.shuffle(self.files) 
+                self.gpudrive_set_dir = self.cfg.gpudrive_evaluation_set_dir
+                self.MIN_ROUTE_LENGTH = 3
+            if not os.path.exists(self.gpudrive_set_dir):
+                os.makedirs(self.gpudrive_set_dir, exist_ok=True)
 
 
     def get_upsampled_and_sd_lanes(self, compact_lane_graph):
@@ -492,6 +509,11 @@ class CtRLSimDataset(Dataset):
             # lanes at resolution compatible with Scenario Dreamer
             lanes_upsampled, lanes = self.get_upsampled_and_sd_lanes(compact_lane_graph)
 
+            if self.cfg.create_gpudrive_dataset:
+                route = get_ego_route(compact_lane_graph, lanes, states[self.AV_IDX, :])
+                if route is None or len(route) < self.MIN_ROUTE_LENGTH:
+                    return False
+
             # remove vehicles that are offroad (>2.5m from lane centerline) 
             # at the initial timestep, but keep ego vehicle
             states, agent_types = self.remove_offroad_agents(
@@ -504,6 +526,30 @@ class CtRLSimDataset(Dataset):
             states, actions = self.rollout_k_disks(copy.deepcopy(states))
             num_agents = len(states)
 
+            if self.cfg.create_gpudrive_dataset:
+                num_lanes = len(lanes)
+                A = np.zeros((num_lanes, num_lanes))
+                suc_pairs = compact_lane_graph['suc_pairs']
+                for lane_id in suc_pairs:
+                    for suc_lane_id in suc_pairs[lane_id]:
+                        A[lane_id, suc_lane_id] = 1
+                G = nx.DiGraph(incoming_graph_data=A)
+                d = {
+                    'route': route, # [K, 2] K is such that there are K 1 metre segments in the route
+                    'agents': states,
+                    'agent_types': agent_types,
+                    'lanes': lanes, # [N, 50, 2]
+                    'lane_graph': G,
+                    'ego_index': num_agents - 1,
+                    'actions': actions
+                }
+
+                file_name = self.files[idx].split('/')[-1]
+                with open(os.path.join(self.gpudrive_set_dir, file_name), 'wb') as f:
+                    pickle.dump(d, f)
+
+                return True
+            
             veh_ego_collision_reward = self.get_ego_collision_rewards(states)
             last_valid_positions = self.get_last_valid_positions(states)
 
