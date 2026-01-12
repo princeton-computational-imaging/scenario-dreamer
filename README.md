@@ -713,7 +713,8 @@ python data_processing/waymo/create_gpudrive_pickles.py \
 # generate json files from pickle files (compatible with adapted GPUDrive simulator)
 python data_processing/waymo/convert_pickles_to_jsons.py \
   dataset_name=waymo \
-  convert_pickles_to_jsons.directory=gpudrive_training_set
+  convert_pickles_to_jsons.directory=gpudrive_training_set \
+  convert_pickles_to_jsons.dataset_size=10000
 ```
 
 </details> 
@@ -768,7 +769,7 @@ python data_processing/waymo/convert_pickles_to_jsons.py \
   convert_pickles_to_jsons.directory=scenario_dreamer_waymo_100m
 
 # move simulation environments into metadata directory
-mv $SCRATCH_ROOT/simulation_environment_datasets $PROJECT_ROOT/metadata/simulation_environment_datasets
+mv $SCRATCH_ROOT/simulation_environment_datasets/* $PROJECT_ROOT/metadata/simulation_environment_datasets
 ```
 
 </details>
@@ -796,7 +797,7 @@ git submodule update --init --recursive
 
 Navigate to the `gpudrive` directory and follow the GPUDrive installation instructions in its README (`gpudrive/README.md`). This includes installing dependencies, building the simulator, and setting up the Python environment.
 
-> **Note**: Please do not create issues in the Scenario Dreamer repository for GPUDrive installation issues. If you encounter problems with GPUDrive setup, please refer to the [GPUDrive repository](https://github.com/Emerge-Lab/gpudrive) for support.
+> **Note**: Please do not create issues in the Scenario Dreamer repository for GPUDrive installation issues unless they are specific to the modifications in the adapted GPUDrive repository. If you encounter problems with GPUDrive setup, please refer to the [GPUDrive repository](https://github.com/Emerge-Lab/gpudrive) for support.
 
 **Using the Singularity Container (Optional)**
 
@@ -824,7 +825,7 @@ We manually terminated the run after 500 epochs (~250M steps), but it will train
 <details> <summary><strong>3. What to Expect</strong></summary>
 
 - The RL policy will train on 1 GPU (we used 1 L40S GPU) to 1B steps. We terminated the run after 500 epochs (~250M steps), and used the 400-epoch checkpoint.
-- Metrics will be logged to wandb.
+- Metrics will be logged to wandb and the Pufferlib interface will be displayed in the console. Note that it often takes 10-15 minutes for the pufferlib display to update from all zeros.
 - Checkpoints will be saved by default to the `gpudrive/wandb/...` directory every 400 epochs.
 - We attained a controlled_agent_sps of around 1400.
 - A screenshot of expected trend in performance during training can be found below:
@@ -844,6 +845,8 @@ We manually terminated the run after 500 epochs (~250M steps), but it will train
 - Verify that you have a trained RL policy (provided pretrained rl policy weights are located at `$PROJECT_ROOT/metadata/gpudrive_checkpoint/pretrained.pt`). Set `cfgs/sim/base/rl_model_path` and `cfgs/sim/base/rl_model_name` accordingly.
 - Verify that you have a pre-trained CtRL-Sim checkpoint. Model weights can be found on the [Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing).
 - Verify that you have generated or downloaded the evaluation datasets (pickles and jsons) and stored them in `$PROJECT_ROOT/metadata/simulation_environment_datasets`. The evaluation datasets can be found on the [Google Drive](https://drive.google.com/drive/folders/13DSHf2UhrvguD7i7iYL5SfSDhgLcW_ja?usp=sharing).
+
+**Note: RL Policy evaluation is run in the Scenario Dreamer Python environment, not in the GPUDrive Python environment. The GPUDrive setup and corresponding Python environment is only required to train the RL policy.**
 
 </details>
 
